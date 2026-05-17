@@ -1,0 +1,4 @@
+	cancer_type	primary_site	batch	disease_type	sample_type	age	sex	race	OS_time_months	OS_Status	DRFi_time_months	DRFi_event	RFi_time_months	RFi_event	tumor_stage	N	T	tumor_size_mm	molecular_subtype	subtype	ror_risk	cclust	er	pr	her2	ki67
+S000001.l.r.m.c.lib.g.k2.a	BRCA	Breast	SCANB	Breast Cancer	Primary Tumor	85.0	female	white	108.8370565045992	Dead	92.34559789750328	0.0	92.34559789750328	0.0	Grade 2.0	0.0	T1	13.0	LumA	LumA	Low		Positive	Positive	Negative	
+S000002.l.r.m.c.lib.g.k2.a	BRCA	Breast	SCANB	Breast Cancer	Primary Tumor	70.0	female	white	134.49408672798947	Alive	59.2969776609724	0.0	59.2969776609724	0.0	Grade 3.0	0.0	T1	16.0	Basal	Basal	High		Negative	Negative	Negative	
+S000002.l.r.m.c.lib.g2.k2.a	BRCA	Breast	SCANB	Breast Cancer	Primary Tumor	70.0	female	white	134.49408672798947	Alive	59.2969776609724	0.0	59.2969776609724	0.0	Grade 3.0	0.0	T1	16.0	Basal	Basal	High		Negative	Negative	Negative	

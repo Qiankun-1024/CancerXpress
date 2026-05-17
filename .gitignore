@@ -1,0 +1,52 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build artifacts
+build/
+dist/
+site/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env/
+
+# Test and coverage artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# IDE and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Logs and runtime outputs
+*.log
+output/
+tmp/
+temp/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local packaging / upload helpers
+.pypirc
+
+# Large model weights: keep manifest, exclude checkpoints
+resources/models/pretrained/
+resources/models/finetuned/
+!resources/models/model_manifest.json
+
+# Optional external resources generated locally
+downloads/

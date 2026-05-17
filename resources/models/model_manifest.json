@@ -1,0 +1,27 @@
+{
+  "batch_correction": {
+    "source_checkpoint": "distill_pretrain_v3",
+    "path": "resources/models/pretrained/batch_correction",
+    "task": "batch correction and latent embedding"
+  },
+  "me": {
+    "source_checkpoint": "ME",
+    "path": "resources/models/finetuned/me",
+    "task": "microenvironment eigengene prediction"
+  },
+  "primary_site": {
+    "source_checkpoint": "primary_site_v2",
+    "path": "resources/models/finetuned/primary_site",
+    "task": "primary site classification"
+  },
+  "cancer_type": {
+    "source_checkpoint": "cancer_type_v2",
+    "path": "resources/models/finetuned/cancer_type",
+    "task": "cancer type classification"
+  },
+  "survival_risk": {
+    "source_checkpoint": "improved_survival_all_batches",
+    "path": "resources/models/finetuned/survival_risk",
+    "task": "survival risk prediction"
+  }
+}

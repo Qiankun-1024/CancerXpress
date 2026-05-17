@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cancerxpress"
+version = "0.1.0"
+description = "CancerXpress: pretrained RNA expression foundation model for batch correction and cancer downstream prediction"
+readme = "README.md"
+requires-python = ">=3.8,<3.9"
+authors = [
+  { name = "CancerXpress Team" }
+]
+dependencies = [
+  "tensorflow-gpu==2.4.0",
+  "tensorflow-addons==0.13.0",
+  "numpy==1.19.5",
+  "pandas==1.2.0",
+  "scipy==1.5.3",
+  "scikit-learn==1.3.0",
+  "joblib==1.3.1"
+]
+
+[project.scripts]
+cancerxpress = "cancerxpress.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["cancerxpress*"]
