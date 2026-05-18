@@ -8,73 +8,44 @@ CancerXpress currently supports:
 - batch correction of gene expression data
 - latent embedding extraction
 - corrected expression reconstruction
-- ME prediction
+- microenvironment eigengene prediction
 - primary site prediction
 - cancer type prediction
 - survival risk prediction
-- integrated gradients attribution for ME, primary site, cancer type, and survival risk
+- integrated gradients attribution for microenvironment eigengenes, primary site, cancer type, and survival risk
 - automatic gene ID conversion between `Ensembl` IDs and `HGNC symbols`
 - key training and fine-tuning scripts under `training/`
 
 ## Project Layout
 
-- `src/cancerxpress/`: installable Python package
+- `cancerxpress/`: installable Python package
 - `resources/`: required assets, encoders, mappings, and model manifests/checkpoints
 - `training/`: key training and fine-tuning scripts
 - `examples/`: small example input files
 
 ## Packaged Models
 
-- `batch_correction`: source checkpoint `distill_pretrain_v3`
-- `me`: source checkpoint `ME`
-- `primary_site`: source checkpoint `primary_site_v2`
-- `cancer_type`: source checkpoint `cancer_type_v2`
-- `survival_risk`: source checkpoint `improved_survival_all_batches`
-
-Only the latest checkpoint is kept for each model. Historical checkpoints are not included.
+- `resources/models/pretrained/batch_correction/`
+  Model parameters for batch correction, latent embedding extraction, and corrected expression reconstruction.
+- `resources/models/finetuned/me/`
+  Model parameters for microenvironment eigengene prediction.
+- `resources/models/finetuned/primary_site/`
+  Model parameters for primary site classification.
+- `resources/models/finetuned/cancer_type/`
+  Model parameters for cancer type classification.
+- `resources/models/finetuned/survival_risk/`
+  Model parameters for survival risk prediction.
 
 For GitHub publication, large model checkpoints should be distributed via external links instead of being committed to the repository. See [MODEL_DOWNLOADS.md](MODEL_DOWNLOADS.md).
 For a repository-level keep/exclude policy under `resources/`, see [RESOURCES_POLICY.md](RESOURCES_POLICY.md).
 
 ## Installation
 
-CancerXpress has been validated in a fresh Conda environment with Python 3.8 and TensorFlow 2.4 GPU dependencies.
-
-### Recommended: Conda Environment from Scratch
-
-```bash
-cd CancerXpress
-conda env create -f environment.yml
-conda activate cancerxpress
-```
-
-### Alternative: Manual Installation
-
 ```bash
 cd CancerXpress
 pip install -r requirements.txt
 pip install -e .
 ```
-
-### Verified Smoke Test
-
-After installation, run:
-
-```bash
-python scripts/smoke_test.py
-```
-
-This checks:
-
-- batch correction
-- latent embedding extraction
-- corrected expression reconstruction
-- ME prediction
-- primary site prediction
-- cancer type prediction
-- survival risk prediction
-- gene ID conversion
-- integrated gradients attribution
 
 ## Python API
 
@@ -93,17 +64,17 @@ cancer_type = pd.read_csv(
 
 model = cx.CancerXpress()
 latent, corrected = model.batch_correct(expr, gene_id_type='ensembl')
-me = model.predict_me(expr, gene_id_type='ensembl')
+me_predictions = model.predict_me(expr, gene_id_type='ensembl')
 primary = model.predict_primary_site(expr, gene_id_type='ensembl')
 cancer = model.predict_cancer_type(expr, gene_id_type='ensembl')
-risk = model.predict_survival_risk(
+risk_scores = model.predict_survival_risk(
     expr,
     cancer_type=cancer_type,
     gene_id_type='ensembl',
 )
 
-me_attr = model.attribute_me(expr.iloc[[0]], me_name='MEblue', gene_id_type='ensembl')
-risk_attr = model.attribute_survival_risk(
+me_attribution = model.attribute_me(expr.iloc[[0]], me_name='MEblue', gene_id_type='ensembl')
+survival_risk_attribution = model.attribute_survival_risk(
     expr.iloc[[0]],
     cancer_type='BRCA',
     gene_id_type='ensembl',
@@ -127,7 +98,7 @@ Expected outputs:
 
 - `latent.tsv`
 - `corrected_expression.tsv`
-- `me_predictions.tsv`
+- `microenvironment_eigengene_predictions.tsv`
 - `primary_site_predictions.tsv`
 - `cancer_type_predictions.tsv`
 - `survival_risk.tsv`
@@ -167,38 +138,38 @@ cancerxpress \
 
 The `training/` directory currently keeps three key scripts:
 
-- `training/ME_regression.py`: regression training for the 8 ME outputs
+- `training/ME_regression.py`: regression training for eight microenvironment eigengene targets
 - `training/classifier.py`: fine-tuning for primary site or cancer type classification
 - `training/improved_risk_prediction.py`: survival risk model training
 
-### Example: ME Training
+### Example: Microenvironment Eigengene Training
 
 ```bash
 python training/ME_regression.py \
-  --data /path/to/merged_data.tsv \
-  --label /path/to/moduleEigenpathways.csv \
-  --ckpt-dir training_checkpoints/ME_new
+  --data /path/to/expression_matrix.tsv \
+  --label /path/to/me_targets.tsv \
+  --ckpt-dir training_checkpoints/me_regressor
 ```
 
 ### Example: Primary Site Classifier Training
 
 ```bash
 python training/classifier.py \
-  --data /path/to/merged_data.tsv \
-  --label /path/to/primary_site_label.tsv \
+  --data /path/to/expression_matrix.tsv \
+  --label /path/to/primary_site_labels.tsv \
   --encoder resources/encoders/primary_site_encoder.pkl \
   --class-type multiclass \
-  --ckpt-dir training_checkpoints/primary_site_new
+  --ckpt-dir training_checkpoints/primary_site_classifier
 ```
 
 ### Example: Survival Risk Training
 
 ```bash
 python training/improved_risk_prediction.py \
-  --data /path/to/merged_data.tsv \
-  --label /path/to/merged_label.tsv \
-  --test-batches META-PRISM MMRF CPTAC \
-  --holdout-cancer-types MM
+  --data /path/to/expression_matrix.tsv \
+  --label /path/to/survival_labels.tsv \
+  --test-batches external_batch_1 external_batch_2 \
+  --holdout-cancer-types optional_cancer_type
 ```
 
 ## What Was Not Migrated
@@ -208,7 +179,7 @@ The following content was intentionally not copied into CancerXpress:
 - most prediction outputs under `output/`
 - historical training logs
 - historical checkpoints
-- very large training matrices such as `dataset/merged_data/merged_data.tsv`
+- very large internal training matrices
 - attribution scripts and attribution intermediate results
 
 This keeps the project much cleaner for packaging, publication, and long-term maintenance.
@@ -217,4 +188,3 @@ This keeps the project much cleaner for packaging, publication, and long-term ma
 
 - The current survival risk model is a dual-input model and requires `cancer_type` during prediction.
 - Training scripts do not automatically download datasets. You need to provide your own expression matrices and labels.
-- GPU support for TensorFlow 2.4 depends on matching CUDA libraries. The provided `environment.yml` includes `cudatoolkit=11.0.3` and `cudnn=8.0.5`, which matches the validated development environment.
