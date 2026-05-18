@@ -9,9 +9,8 @@ import tensorflow as tf
 from sklearn.model_selection import train_test_split
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = PROJECT_ROOT / 'src'
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from cancerxpress import task_model, data_normalizer
 from cancerxpress.losses import focal_loss
@@ -34,7 +33,7 @@ def printbar():
     print(timestring)
 
 
-def train_classifier(data, label, encoder_path, batch_size, lr, epochs, ckpt_dir, class_type='multiclass', trainable_layer='none'):
+def train_label_classifier(data, label, encoder_path, batch_size, lr, epochs, ckpt_dir, class_type='multiclass', trainable_layer='none'):
     data = data.loc[label.index]
     x = data_normalizer.gene2img(data, dtype='TPM')
     encoder = joblib.load(encoder_path)
@@ -103,10 +102,10 @@ def test_step(model, features, labels, test_loss, accuracy, micro_avg):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Train CancerXpress classifier')
-    parser.add_argument('--data', required=True, help='Expression matrix TSV')
-    parser.add_argument('--label', required=True, help='Single-column label TSV')
-    parser.add_argument('--encoder', required=True, help='OneHot encoder pkl for the label')
+    parser = argparse.ArgumentParser(description='Train a CancerXpress classifier for categorical sample labels')
+    parser.add_argument('--data', required=True, help='Expression matrix TSV with samples in rows and genes in columns')
+    parser.add_argument('--label', required=True, help='Single-column label table TSV')
+    parser.add_argument('--encoder', required=True, help='Fitted one-hot encoder for the target label')
     parser.add_argument('--class-type', default='multiclass', choices=['multiclass', 'multilabel'])
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--lr', type=float, default=1e-4)
@@ -117,7 +116,7 @@ def main():
     data = pd.read_csv(args.data, index_col=0, sep='\t')
     label = pd.read_csv(args.label, index_col=0, sep='\t')
     common = data.index.intersection(label.index)
-    train_classifier(data.loc[common], label.loc[common], args.encoder, args.batch_size, args.lr, args.epochs, args.ckpt_dir, args.class_type, args.trainable_layer)
+    train_label_classifier(data.loc[common], label.loc[common], args.encoder, args.batch_size, args.lr, args.epochs, args.ckpt_dir, args.class_type, args.trainable_layer)
 
 
 if __name__ == '__main__':

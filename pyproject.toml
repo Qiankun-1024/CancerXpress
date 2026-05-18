@@ -25,8 +25,7 @@ dependencies = [
 cancerxpress = "cancerxpress.cli:main"
 
 [tool.setuptools]
-package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
 include = ["cancerxpress*"]

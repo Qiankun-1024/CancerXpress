@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-改进的生存风险预测模型训练
-
-只用 TCGA 数据训练，其他批次作为测试
-"""
+"""Train the CancerXpress survival risk model."""
 
 import argparse
 import os
@@ -19,22 +15,21 @@ from sklearn.model_selection import train_test_split
 warnings.filterwarnings('ignore')
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = PROJECT_ROOT / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from cancerxpress import task_model, data_normalizer
 from cancerxpress.losses import cox_loss
 from cancerxpress.resources import ModelPaths
 
 MODEL_PATHS = ModelPaths()
-DEFAULT_DATA_PATH = PROJECT_ROOT / "dataset" / "merged_data" / "merged_data.tsv"
-DEFAULT_LABEL_PATH = PROJECT_ROOT / "dataset" / "merged_data" / "merged_label.tsv"
+DEFAULT_DATA_PATH = PROJECT_ROOT / "dataset" / "expression_matrix.tsv"
+DEFAULT_LABEL_PATH = PROJECT_ROOT / "dataset" / "survival_labels.tsv"
 
 
 @tf.function
 def printbar():
-    """打印时间进度条"""
+    """Print a timestamped progress bar."""
     ts = tf.timestamp()
     today_ts = ts % (24 * 60 * 60)
     hour = tf.cast(today_ts // 3600 + 8, tf.int32) % tf.constant(24)
@@ -52,7 +47,7 @@ def printbar():
 
 
 def calculate_c_index(time, event, risk_score):
-    """计算C-index"""
+    """Compute the concordance index."""
     n = len(time)
     concordant = 0
     permissible = 0
@@ -645,14 +640,14 @@ def train_improved_model(
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description="Train CancerXpress survival risk model")
-    parser.add_argument("--data", default=str(DEFAULT_DATA_PATH), help="Expression matrix TSV")
-    parser.add_argument("--label", default=str(DEFAULT_LABEL_PATH), help="Label TSV with survival columns")
+    parser = argparse.ArgumentParser(description="Train the CancerXpress survival risk model")
+    parser.add_argument("--data", default=str(DEFAULT_DATA_PATH), help="Expression matrix TSV with samples in rows and genes in columns")
+    parser.add_argument("--label", default=str(DEFAULT_LABEL_PATH), help="Survival label TSV with time, event, batch, and cancer-type columns")
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--lr", type=float, default=0.000005)
     parser.add_argument("--epochs", type=int, default=200)
-    parser.add_argument("--test-batches", nargs="+", default=["META-PRISM", "MMRF", "CPTAC"])
-    parser.add_argument("--holdout-cancer-types", nargs="*", default=["MM"])
+    parser.add_argument("--test-batches", nargs="+", default=["META-PRISM", "MMRF", "CPTAC"], help="External cohorts to keep out of training")
+    parser.add_argument("--holdout-cancer-types", nargs="*", default=["MM"], help="Cancer types to exclude from training and reserve for evaluation")
     parser.add_argument("--same-cancer-loss-weight", type=float, default=0.35)
     parser.add_argument("--cancer-difficulty-lambda", type=float, default=0.3)
     parser.add_argument("--target-val-cindex", type=float, default=0.7)

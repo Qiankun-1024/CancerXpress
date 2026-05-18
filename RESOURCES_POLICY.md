@@ -59,4 +59,3 @@ Users should:
 1. install the package environment
 2. download model checkpoints from public links
 3. place them under `resources/models/`
-4. run `scripts/smoke_test.py` to verify the setup

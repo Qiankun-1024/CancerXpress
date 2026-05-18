@@ -11,11 +11,11 @@ The following resources should be hosted externally, for example via:
 
 ## Required Checkpoint Groups
 
-- `batch_correction`
-- `me`
-- `primary_site`
-- `cancer_type`
-- `survival_risk`
+- `batch_correction`: batch correction, latent embedding extraction, and corrected expression reconstruction
+- `module_eigenpathway`: Module Eigenpathway prediction
+- `primary_site`: primary site classification
+- `cancer_type`: cancer type classification
+- `survival_risk`: survival risk prediction
 
 ## Suggested Layout After Download
 
@@ -33,12 +33,14 @@ resources/models/
     survival_risk/
 ```
 
+The public task name `module_eigenpathway` currently maps to the local checkpoint directory `resources/models/finetuned/me/`.
+
 ## External Links
 
 Replace the placeholders below with your real public download URLs.
 
 - `batch_correction`: `TO_BE_FILLED`
-- `me`: `TO_BE_FILLED`
+- `module_eigenpathway`: `TO_BE_FILLED`
 - `primary_site`: `TO_BE_FILLED`
 - `cancer_type`: `TO_BE_FILLED`
 - `survival_risk`: `TO_BE_FILLED`

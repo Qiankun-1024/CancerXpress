@@ -8,11 +8,11 @@ CancerXpress currently supports:
 - batch correction of gene expression data
 - latent embedding extraction
 - corrected expression reconstruction
-- microenvironment eigengene prediction
+- Module Eigenpathway prediction
 - primary site prediction
 - cancer type prediction
 - survival risk prediction
-- integrated gradients attribution for microenvironment eigengenes, primary site, cancer type, and survival risk
+- integrated gradients attribution for Module Eigenpathways, primary site, cancer type, and survival risk
 - automatic gene ID conversion between `Ensembl` IDs and `HGNC symbols`
 - key training and fine-tuning scripts under `training/`
 
@@ -28,7 +28,7 @@ CancerXpress currently supports:
 - `resources/models/pretrained/batch_correction/`
   Model parameters for batch correction, latent embedding extraction, and corrected expression reconstruction.
 - `resources/models/finetuned/me/`
-  Model parameters for microenvironment eigengene prediction.
+  Model parameters for Module Eigenpathway prediction.
 - `resources/models/finetuned/primary_site/`
   Model parameters for primary site classification.
 - `resources/models/finetuned/cancer_type/`
@@ -64,7 +64,7 @@ cancer_type = pd.read_csv(
 
 model = cx.CancerXpress()
 latent, corrected = model.batch_correct(expr, gene_id_type='ensembl')
-me_predictions = model.predict_me(expr, gene_id_type='ensembl')
+module_eigenpathway_predictions = model.predict_me(expr, gene_id_type='ensembl')
 primary = model.predict_primary_site(expr, gene_id_type='ensembl')
 cancer = model.predict_cancer_type(expr, gene_id_type='ensembl')
 risk_scores = model.predict_survival_risk(
@@ -73,7 +73,7 @@ risk_scores = model.predict_survival_risk(
     gene_id_type='ensembl',
 )
 
-me_attribution = model.attribute_me(expr.iloc[[0]], me_name='MEblue', gene_id_type='ensembl')
+module_eigenpathway_attribution = model.attribute_me(expr.iloc[[0]], me_name='MEblue', gene_id_type='ensembl')
 survival_risk_attribution = model.attribute_survival_risk(
     expr.iloc[[0]],
     cancer_type='BRCA',
@@ -98,7 +98,7 @@ Expected outputs:
 
 - `latent.tsv`
 - `corrected_expression.tsv`
-- `microenvironment_eigengene_predictions.tsv`
+- `module_eigenpathway_predictions.tsv`
 - `primary_site_predictions.tsv`
 - `cancer_type_predictions.tsv`
 - `survival_risk.tsv`
@@ -138,11 +138,11 @@ cancerxpress \
 
 The `training/` directory currently keeps three key scripts:
 
-- `training/ME_regression.py`: regression training for eight microenvironment eigengene targets
+- `training/ME_regression.py`: regression training for eight Module Eigenpathway targets
 - `training/classifier.py`: fine-tuning for primary site or cancer type classification
 - `training/improved_risk_prediction.py`: survival risk model training
 
-### Example: Microenvironment Eigengene Training
+### Example: Module Eigenpathway Training
 
 ```bash
 python training/ME_regression.py \

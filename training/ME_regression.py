@@ -9,9 +9,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = PROJECT_ROOT / 'src'
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from cancerxpress import task_model, data_normalizer
 
@@ -32,7 +31,7 @@ def printbar():
     print(timestring)
 
 
-def load_data(data_path: str, label_path: str):
+def load_expression_and_me_targets(data_path: str, label_path: str):
     data = pd.read_csv(data_path, index_col=0, sep='\t')
     label = pd.read_csv(label_path, index_col=0)
     label = label.drop(columns=['MEgrey'], errors='ignore')
@@ -40,7 +39,7 @@ def load_data(data_path: str, label_path: str):
     return data.loc[common], label.loc[common]
 
 
-def train_classifier(data, label, batch_size, lr, epochs, ckpt_dir, trainable_layer='none'):
+def train_me_regressor(data, label, batch_size, lr, epochs, ckpt_dir, trainable_layer='none'):
     x = data_normalizer.gene2img(data, dtype='TPM')
     scaler = StandardScaler()
     y = scaler.fit_transform(label)
@@ -65,7 +64,7 @@ def train_classifier(data, label, batch_size, lr, epochs, ckpt_dir, trainable_la
         for test_x, test_y in test_dataset:
             test_step(classifier, test_x, test_y, test_loss)
         printbar()
-        print(f'ME regressor, EPOCH {epoch + 1}')
+        print(f'Module Eigenpathway regressor, EPOCH {epoch + 1}')
         print(f'Train loss: {train_loss.result()}, Test loss: {test_loss.result()}')
         new_test_loss = test_loss.result()
         if new_test_loss < min_test_loss:
@@ -98,9 +97,9 @@ def test_step(model, features, labels, test_loss):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Train CancerXpress ME regressor')
-    parser.add_argument('--data', required=True, help='Expression matrix TSV')
-    parser.add_argument('--label', required=True, help='ME label CSV/TSV')
+    parser = argparse.ArgumentParser(description='Train the CancerXpress Module Eigenpathway regressor')
+    parser.add_argument('--data', required=True, help='Expression matrix TSV with samples in rows and genes in columns')
+    parser.add_argument('--label', required=True, help='Module Eigenpathway target table (CSV or TSV)')
     parser.add_argument('--sep', default='auto', choices=['auto', 'comma', 'tab'])
     parser.add_argument('--batch-size', type=int, default=128)
     parser.add_argument('--lr', type=float, default=1e-4)
@@ -110,12 +109,13 @@ def main():
 
     if args.sep == 'tab' or args.label.endswith('.tsv'):
         label = pd.read_csv(args.label, index_col=0, sep='\t')
+        data = pd.read_csv(args.data, index_col=0, sep='\t')
+        label = label.drop(columns=['MEgrey'], errors='ignore')
+        common = data.index.intersection(label.index)
+        data, label = data.loc[common], label.loc[common]
     else:
-        label = pd.read_csv(args.label, index_col=0)
-    data = pd.read_csv(args.data, index_col=0, sep='\t')
-    label = label.drop(columns=['MEgrey'], errors='ignore')
-    common = data.index.intersection(label.index)
-    train_classifier(data.loc[common], label.loc[common], args.batch_size, args.lr, args.epochs, args.ckpt_dir)
+        data, label = load_expression_and_me_targets(args.data, args.label)
+    train_me_regressor(data, label, args.batch_size, args.lr, args.epochs, args.ckpt_dir)
 
 
 if __name__ == '__main__':
