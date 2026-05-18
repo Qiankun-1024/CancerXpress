@@ -1,20 +1,62 @@
 # CancerXpress
 
-CancerXpress is a cleaned, package-ready version of the original `RNA-IMAGE` project. It is organized for GitHub release and Python packaging, while keeping only the essential code, resources, and latest model checkpoints needed for practical use.
+CancerXpress is a pan-cancer transcriptomic representation learning framework for bulk RNA-seq data. It learns de-batched expression profiles and transferable biological representations that can be used for downstream prediction, functional state analysis, and interpretable single-sample characterization.
 
-CancerXpress currently supports:
+It is designed for use cases where transcriptomic models need to generalize across cohorts, sequencing workflows, and cancer types rather than only perform well within a single dataset.
 
-- pretrained model loading
-- batch correction of gene expression data
-- latent embedding extraction
-- corrected expression reconstruction
+## Key Features
+
+- batch effect correction and corrected expression reconstruction
+- latent embedding extraction for downstream analysis
+- pan-cancer representation learning across cohorts and cancer types
 - Module Eigenpathway prediction
 - primary site prediction
 - cancer type prediction
-- survival risk prediction
-- integrated gradients attribution for Module Eigenpathways, primary site, cancer type, and survival risk
+- survival risk prediction with external cohort evaluation
+- functional state characterization through low-dimensional transcriptomic axes
+- sample-level attribution through integrated gradients
 - automatic gene ID conversion between `Ensembl` IDs and `HGNC symbols`
-- key training and fine-tuning scripts under `training/`
+- training and fine-tuning scripts under `training/`
+
+## Quick Start
+
+Install the package:
+
+```bash
+cd CancerXpress
+pip install -r requirements.txt
+pip install -e .
+```
+
+Run the full inference pipeline on the example data:
+
+```bash
+cancerxpress \
+  --input examples/scanb_demo_3samples.tsv \
+  --cancer-type-file examples/scanb_demo_3samples_cancer_type.tsv \
+  --outdir output/demo \
+  --task all \
+  --gene-id-type ensembl
+```
+
+Use the Python API:
+
+```python
+import pandas as pd
+import cancerxpress as cx
+
+expr = pd.read_csv('examples/scanb_demo_3samples.tsv', sep='\t', index_col=0)
+cancer_type = pd.read_csv(
+    'examples/scanb_demo_3samples_cancer_type.tsv',
+    sep='\t',
+    index_col=0,
+)['cancer_type']
+
+model = cx.CancerXpress()
+latent, corrected = model.batch_correct(expr, gene_id_type='ensembl')
+module_eigenpathway_predictions = model.predict_me(expr, gene_id_type='ensembl')
+risk_scores = model.predict_survival_risk(expr, cancer_type=cancer_type, gene_id_type='ensembl')
+```
 
 ## Project Layout
 
@@ -42,14 +84,13 @@ For a repository-level keep/exclude policy under `resources/`, see [RESOURCES_PO
 ## Installation
 
 ```bash
-cd CancerXpress
 pip install -r requirements.txt
 pip install -e .
 ```
 
 ## Python API
 
-CancerXpress is intended to be used like this:
+CancerXpress provides a single high-level entry point for preprocessing, prediction, and attribution:
 
 ```python
 import pandas as pd
@@ -80,6 +121,18 @@ survival_risk_attribution = model.attribute_survival_risk(
     gene_id_type='ensembl',
 )
 ```
+
+Main API methods:
+
+- `batch_correct(...)`
+- `predict_me(...)`
+- `predict_primary_site(...)`
+- `predict_cancer_type(...)`
+- `predict_survival_risk(...)`
+- `attribute_me(...)`
+- `attribute_primary_site(...)`
+- `attribute_cancer_type(...)`
+- `attribute_survival_risk(...)`
 
 ## CLI
 
