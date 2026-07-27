@@ -37,6 +37,9 @@ output/
 tmp/
 temp/
 
+# Local datasets
+dataset/
+
 # Jupyter
 .ipynb_checkpoints/
 
