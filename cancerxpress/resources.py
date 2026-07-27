@@ -6,7 +6,7 @@ import json
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
-PROJECT_ROOT = PACKAGE_ROOT.parents[1]
+PROJECT_ROOT = PACKAGE_ROOT.parent
 RESOURCE_ROOT = PROJECT_ROOT / 'resources'
 ASSET_ROOT = RESOURCE_ROOT / 'assets'
 MODEL_ROOT = RESOURCE_ROOT / 'models'

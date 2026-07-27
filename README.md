@@ -39,6 +39,17 @@ cancerxpress \
   --gene-id-type ensembl
 ```
 
+Run survival risk prediction only:
+
+```bash
+cancerxpress \
+  --input examples/scanb_demo_3samples.tsv \
+  --cancer-type-file examples/scanb_demo_3samples_cancer_type.tsv \
+  --outdir output/risk_demo \
+  --task risk \
+  --gene-id-type ensembl
+```
+
 Use the Python API:
 
 ```python
@@ -56,6 +67,18 @@ model = cx.CancerXpress()
 latent, corrected = model.batch_correct(expr, gene_id_type='ensembl')
 module_eigenpathway_predictions = model.predict_me(expr, gene_id_type='ensembl')
 risk_scores = model.predict_survival_risk(expr, cancer_type=cancer_type, gene_id_type='ensembl')
+```
+
+Run the standalone survival risk example:
+
+```bash
+python examples/risk_prediction_demo.py
+```
+
+Run the standalone survival risk attribution example:
+
+```bash
+python examples/risk_attribution_demo.py
 ```
 
 ## Project Layout
@@ -133,6 +156,109 @@ Main API methods:
 - `attribute_primary_site(...)`
 - `attribute_cancer_type(...)`
 - `attribute_survival_risk(...)`
+
+## Survival Risk Prediction
+
+The packaged survival risk model is the current run1 dual-input model.
+It requires:
+
+- an expression matrix
+- one cancer type label for each sample
+
+### Required Input Format
+
+Expression matrix:
+
+- rows: samples
+- columns: genes
+- values: TPM-like expression matrix accepted by CancerXpress
+
+Cancer type file:
+
+- same sample order as the expression matrix, or matching sample IDs in the first column
+- must contain a column named `cancer_type`
+
+Example cancer type file:
+
+```tsv
+sample_id	cancer_type
+sample_1	BRCA
+sample_2	BRCA
+sample_3	BRCA
+```
+
+### Python Example
+
+```python
+import pandas as pd
+import cancerxpress as cx
+
+expr = pd.read_csv('examples/scanb_demo_3samples.tsv', sep='\t', index_col=0)
+cancer_type = pd.read_csv(
+    'examples/scanb_demo_3samples_cancer_type.tsv',
+    sep='\t',
+    index_col=0,
+)['cancer_type']
+
+model = cx.CancerXpress()
+risk_scores = model.predict_survival_risk(
+    expr_tpm=expr,
+    cancer_type=cancer_type,
+    gene_id_type='ensembl',
+)
+print(risk_scores)
+```
+
+### Survival Risk Attribution Example
+
+```python
+import pandas as pd
+import cancerxpress as cx
+
+expr = pd.read_csv('examples/scanb_demo_3samples.tsv', sep='\t', index_col=0)
+cancer_type = pd.read_csv(
+    'examples/scanb_demo_3samples_cancer_type.tsv',
+    sep='\t',
+    index_col=0,
+)['cancer_type']
+
+sample_id = expr.index[0]
+
+model = cx.CancerXpress()
+attribution = model.attribute_survival_risk(
+    expr_tpm=expr.loc[[sample_id]],
+    cancer_type=cancer_type.loc[[sample_id]],
+    gene_id_type='ensembl',
+)
+```
+
+### CLI Example
+
+```bash
+cancerxpress \
+  --input examples/scanb_demo_3samples.tsv \
+  --cancer-type-file examples/scanb_demo_3samples_cancer_type.tsv \
+  --outdir output/risk_demo \
+  --task risk \
+  --gene-id-type ensembl
+```
+
+### Output
+
+The risk prediction output is a table with one row per sample and one column:
+
+- `risk_score`: relative Cox-model risk score
+
+Interpretation:
+
+- a higher `risk_score` means a higher predicted relative risk
+- the score is mainly useful for ranking samples within a cohort or cancer setting
+- it is not a direct survival probability
+
+For attribution output:
+
+- `survival_risk_prediction.tsv`: predicted risk score for the input sample
+- `survival_risk_attribution.tsv`: gene-level integrated gradients attribution for survival risk
 
 ## CLI
 
@@ -239,5 +365,5 @@ This keeps the project much cleaner for packaging, publication, and long-term ma
 
 ## Notes
 
-- The current survival risk model is a dual-input model and requires `cancer_type` during prediction.
+- The packaged survival risk model uses the current run1 dual-input checkpoint and requires `cancer_type` during prediction.
 - Training scripts do not automatically download datasets. You need to provide your own expression matrices and labels.

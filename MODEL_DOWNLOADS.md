@@ -43,7 +43,7 @@ Replace the placeholders below with your real public download URLs.
 - `module_eigenpathway`: `TO_BE_FILLED`
 - `primary_site`: `TO_BE_FILLED`
 - `cancer_type`: `TO_BE_FILLED`
-- `survival_risk`: `TO_BE_FILLED`
+- `survival_risk`: packaged run1 dual-input checkpoint for pan-cancer survival risk prediction; requires cancer type input at inference time
 
 ## Notes
 
