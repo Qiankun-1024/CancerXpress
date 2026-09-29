@@ -41,13 +41,24 @@ class RiskAttributionTests(unittest.TestCase):
                              side_effect=lambda frame, values: pd.DataFrame(values, index=frame.index, columns=frame.columns)):
             attributor = CancerXpressAttributor()
             ref = pd.Series(0., index=names[::-1])
-            result = attributor.attribute_axis_risk(expr, pd.DataFrame(), 'MEred',
+            result = attributor.attribute_axis_risk_from_baseline(expr, pd.DataFrame(), 'MEred',
                                                      np.zeros((1, 8)), ref, steps=4)
             self.assertTrue(result.diagnostics.allocation_valid.iloc[0])
             self.assertEqual(result.axis_shapley.index.tolist(), ['patient'])
             self.assertAlmostEqual(result.gene_risk_contribution.sum(axis=1).iloc[0], 6)
+            reference = pd.DataFrame(np.array([[0.] * 8, [2.] * 8]),
+                                     columns=expr.columns, index=['ref1', 'ref2'])
+            tpm_result = attributor.attribute_axis_risk(
+                expr, pd.DataFrame(), 'MEred', reference, steps=4)
+            self.assertAlmostEqual(tpm_result.gene_risk_contribution.sum(axis=1).iloc[0], 5)
+            self.assertEqual(tpm_result.diagnostics.reference_n_samples.iloc[0], 2)
+            self.assertAlmostEqual(tpm_result.diagnostics.baseline_axis_value.iloc[0], 1)
             with self.assertRaises(ValueError):
-                attributor.attribute_axis_risk(expr, pd.DataFrame(), 'MEred',
+                attributor.attribute_axis_risk(expr, pd.DataFrame(), 'MEred', reference.iloc[:0])
+            with self.assertRaises(ValueError):
+                attributor.attribute_axis_risk(expr, pd.DataFrame(), 'MEred', -reference)
+            with self.assertRaises(ValueError):
+                attributor.attribute_axis_risk_from_baseline(expr, pd.DataFrame(), 'MEred',
                                                np.ones((1, 8)), ref, steps=4)
 
     def test_shapley_interaction_and_fixed_covariates(self):

@@ -247,44 +247,45 @@ For attribution output:
 
 ### Axis-Specific Risk Attribution
 
-`attribute_axis_risk` explains one patient's selected functional-axis risk
-contribution: exact ME Shapley followed by gene-to-axis integrated gradients
-(IG). Clinical inputs remain fixed. This differs from the direct gene-to-risk
-IG returned by `attribute_survival_risk`.
+Pass the patient's TPM, clinical information, and reference TPM samples.
+The package handles internal image conversion and computes exact ME Shapley,
+gene-to-axis IG, and the selected axis's gene-level risk allocation.
 
 ```python
-import numpy as np
 import pandas as pd
 import cancerxpress as cx
 
-# expr and clinical: sample-indexed inputs as in the examples above.
-# Use the frozen training reference for this cancer and model/fold.
-baseline_me = pd.read_csv('baseline_me.tsv', sep='\t', index_col=0).iloc[0]
+expr = pd.read_csv('patient_tpm.tsv', sep='\t', index_col=0)
+clinical = pd.read_csv('clinical.tsv', sep='\t', index_col=0)
+reference = pd.read_csv('training_reference_tpm.tsv', sep='\t', index_col=0)
+
 result = cx.CancerXpress().attribute_axis_risk(
-    expr.iloc[[0]], clinical.loc[expr.index[:1]], me_name='MEred',
-    baseline_image=np.load('baseline_image.npy'),
-    baseline_me=baseline_me,  # Series indexed by the eight ME names
-    steps=64, internal_batch_size=16, gene_id_type='ensembl',
+    expr.iloc[[0]], clinical.loc[expr.index[:1]],
+    me_name='MEred', reference_tpm=reference, gene_id_type='ensembl',
 )
 result.axis_shapley.to_csv('axis_shapley.tsv', sep='\t')
 result.gene_risk_contribution.to_csv('gene_axis_risk.tsv', sep='\t')
 print(result.diagnostics)
 ```
 
-- `baseline_image` is a normalized model-input image, not raw TPM. Its selected
-  ME prediction must match `baseline_me` (default tolerance: 0.001 ME units).
-  Use training-only references; do not recenter on the external cohort.
-- Gene contributions are `axis_shapley * gene_IG / sum(gene_IG)`, using all
-  mapped genes. They are signed log-risk allocations, not percentages, causal
-  effects, or exact gene-level Shapley values.
-- `result.gene_to_axis_ig` retains the original gene IG. Diagnostics report
-  completeness and allocation validity. A near-zero denominator or excessive
-  IG error produces NaN contributions, not zero importance.
-- Lower-level functions are also available: `exact_axis_shapley`,
+- Both TPM matrices have samples as rows and genes as columns. Use a fixed
+  training reference from the corresponding cancer/model/fold, not the test
+  patient itself or an external cohort recentered separately. Reference patients
+  do not need clinical information; the target patient's clinical inputs stay fixed.
+- Internally, reference samples are individually preprocessed and their model-input
+  images averaged. The model prediction of this average supplies the ME baseline.
+  No image or ME-reference file is required from the user. This baseline is NOT
+  the mean of individual ME predictions and may differ from earlier research
+  results using an optimized training-mean-ME baseline.
+- Outputs: `axis_shapley` (eight axes), `gene_to_axis_ig`,
+  `gene_risk_contribution`, and `diagnostics` (completeness errors and validity).
+  Allocation is `axis_shapley * gene_IG / sum(gene_IG)`, over all mapped genes.
+  Values are signed log-risk allocations, not percentages or causal effects.
+  Invalid allocations become NaN.
+- This differs from direct gene-to-risk IG (`attribute_survival_risk`).
+  Advanced primitives remain available: `exact_axis_shapley`,
   `gene_axis_integrated_gradients`, `allocate_axis_risk`, and
-  `optimize_axis_baseline`. The last fits a synthetic baseline from a training
-  mean input image, a binary mapped-gene pixel mask, and a frozen ME reference;
-  inspect its returned optimization history before use.
+  `optimize_axis_baseline`.
 
 ## CLI
 

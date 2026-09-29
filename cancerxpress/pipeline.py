@@ -167,18 +167,21 @@ class CancerXpress:
         expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
         return self.attributor.attribute_survival_risk(expr, clinical=clinical, steps=steps)
 
-    def attribute_axis_risk(self, expr_tpm, clinical, me_name, baseline_image,
-                            baseline_me, steps=64, internal_batch_size=32,
-                            maximum_relative_error=0.1, baseline_tolerance=1e-3,
+    def attribute_axis_risk(self, expr_tpm, clinical, me_name, reference_tpm,
+                            steps=64, internal_batch_size=32,
+                            maximum_relative_error=0.1,
                             gene_id_type='auto'):
         """Attribute one sample's selected ME risk contribution to all genes.
 
         See README.md, Axis-Specific Risk Attribution, for baselines and QC.
         """
         expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
+        if not isinstance(reference_tpm, pd.DataFrame) or reference_tpm.empty:
+            raise ValueError('reference_tpm must be a nonempty samples-by-genes TPM DataFrame')
+        reference = self.harmonize_expression(reference_tpm, gene_id_type=gene_id_type)
         return self.attributor.attribute_axis_risk(
-            expr, clinical, me_name, baseline_image, baseline_me, steps,
-            internal_batch_size, maximum_relative_error, baseline_tolerance)
+            expr, clinical, me_name, reference, steps,
+            internal_batch_size, maximum_relative_error)
 
     def run_all(
         self,

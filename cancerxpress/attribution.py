@@ -54,9 +54,48 @@ class CancerXpressAttributor:
         self.model_paths = model_paths or ModelPaths()
         self.resource_paths = resource_paths or ResourcePaths()
 
-    def attribute_axis_risk(self, expr, clinical, me_name, baseline_image,
+    def attribute_axis_risk(self, expr, clinical, me_name, reference_tpm,
+                            steps=64, internal_batch_size=32,
+                            maximum_relative_error=0.1):
+        """Use reference TPM samples to construct a consistent internal baseline.
+
+        Reference samples must already have the same harmonized genes as expr.
+        The baseline is the mean of preprocessed reference images; its model
+        prediction supplies the Shapley reference, NOT the mean predicted ME.
+        """
+        expr = self._ensure_single_sample(expr)
+        if (not isinstance(reference_tpm, pd.DataFrame) or reference_tpm.empty
+                or reference_tpm.index.has_duplicates or reference_tpm.columns.has_duplicates):
+            raise ValueError('reference_tpm must be a nonempty DataFrame with unique labels')
+        if set(reference_tpm.columns) != set(expr.columns):
+            raise ValueError('Reference and target must have the same harmonized genes')
+        reference_tpm = reference_tpm.reindex(columns=expr.columns)
+        values = reference_tpm.to_numpy(dtype=np.float32)
+        if not np.isfinite(values).all() or np.any(values < 0):
+            raise ValueError('reference_tpm must contain finite nonnegative TPM')
+        # Preprocess each sample before averaging; TPM normalization is nonlinear.
+        image_sum = None
+        for start in range(0, len(reference_tpm), 32):
+            images = Predictor(reference_tpm.iloc[start:start + 32]).data
+            batch_sum = np.asarray(images, dtype=np.float64).sum(axis=0, keepdims=True)
+            image_sum = batch_sum if image_sum is None else image_sum + batch_sum
+        baseline_image = (image_sum / len(reference_tpm)).astype(np.float32)
+        metadata = load_risk_preprocessing(self.resource_paths.risk_preprocessing)
+        me_model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None)
+        reference = pd.Series(np.asarray(me_model(baseline_image, training=False))[0],
+                              index=metadata['me_columns'])
+        result = self.attribute_axis_risk_from_baseline(
+            expr, clinical, me_name, baseline_image, reference, steps,
+            internal_batch_size, maximum_relative_error, _me_model=me_model)
+        result.diagnostics['reference_n_samples'] = len(reference_tpm)
+        result.diagnostics['baseline_method'] = 'mean_preprocessed_reference_TPM'
+        result.diagnostics['baseline_axis_value'] = reference[me_name]
+        return result
+
+    def attribute_axis_risk_from_baseline(self, expr, clinical, me_name, baseline_image,
                             baseline_me, steps=64, internal_batch_size=32,
-                            maximum_relative_error=0.1, baseline_tolerance=1e-3):
+                            maximum_relative_error=0.1, baseline_tolerance=1e-3,
+                            _me_model=None):
         """Single-sample gene -> ME -> log-risk allocation with frozen baselines.
 
         baseline_me is an axis-indexed Series in unscaled ME units;
@@ -76,7 +115,8 @@ class CancerXpressAttributor:
         if not np.isfinite(baseline_tolerance) or baseline_tolerance < 0:
             raise ValueError('baseline_tolerance must be finite and nonnegative')
         predictor = Predictor(expr)
-        me_model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None)
+        me_model = _me_model if _me_model is not None else model_loader.load_predict_model(
+            'latest', str(self.model_paths.me), 8, None)
         values = me_model(predictor.data, training=False).numpy()
         frame = pd.DataFrame(values, index=expr.index, columns=names)
         features = predictor._prepare_run1_features(frame, clinical, metadata)
