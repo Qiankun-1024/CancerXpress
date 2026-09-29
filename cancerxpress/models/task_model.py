@@ -25,10 +25,10 @@ class FCN(tf.keras.Model):
         ])
         self.out_layer = tf.keras.Sequential([tf.keras.layers.Dense(output_dim, activation=activation)])
 
-    def call(self, x):
+    def call(self, x, training=False):
         mean, logvar = tf.split(self.encoder(x), num_or_size_splits=2, axis=1)
-        logits = self.fc_layer(mean)
-        return self.out_layer(logits)
+        logits = self.fc_layer(mean, training=training)
+        return self.out_layer(logits, training=training)
 
 
 def get_encoder_layer(trainable_layer='none', ckpt_path=None):

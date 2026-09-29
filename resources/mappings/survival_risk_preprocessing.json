@@ -1,0 +1,77 @@
+{
+  "model_type": "run1_me_clinical_legacy",
+  "me_columns": [
+    "MEblack",
+    "MEblue",
+    "MEbrown",
+    "MEgreen",
+    "MEpink",
+    "MEred",
+    "MEturquoise",
+    "MEyellow"
+  ],
+  "clinical_columns": [
+    "age",
+    "sex",
+    "race",
+    "tumor_stage",
+    "cancer_type"
+  ],
+  "age_fill_median": 61.0,
+  "age_mean": 59.03728560775541,
+  "age_std": 14.24870027416753,
+  "sex_vocab": {
+    "female": 0,
+    "male": 1
+  },
+  "race_vocab": {
+    "american indian or alaska native": 0,
+    "asian": 1,
+    "black or african american": 2,
+    "native hawaiian or other pacific islander": 3,
+    "unknown": 4,
+    "white": 5
+  },
+  "stage_vocab": {
+    "stage i": 0,
+    "stage ii": 1,
+    "stage iii": 2,
+    "stage iv": 3,
+    "unknown": 4
+  },
+  "cancer_vocab": {
+    "ACC": 0,
+    "AML": 1,
+    "BLCA": 2,
+    "BRCA": 3,
+    "CESC": 4,
+    "COAD": 5,
+    "ESCA": 6,
+    "GBM": 7,
+    "HNSC": 8,
+    "KICH": 9,
+    "KIRC": 10,
+    "KIRP": 11,
+    "LGG": 12,
+    "LIHC": 13,
+    "LUAD": 14,
+    "LUSC": 15,
+    "MESO": 16,
+    "OV": 17,
+    "PAAD": 18,
+    "PCPG": 19,
+    "PRAD": 20,
+    "READ": 21,
+    "SARC": 22,
+    "SKCM": 23,
+    "STAD": 24,
+    "TGCT": 25,
+    "THCA": 26,
+    "THYM": 27,
+    "UCEC": 28,
+    "UCS": 29,
+    "UVM": 30
+  },
+  "training_seed": 42,
+  "minimum_cancer_samples": 50
+}

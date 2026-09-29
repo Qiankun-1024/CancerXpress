@@ -23,7 +23,7 @@ class ResourcePaths:
     primary_site_encoder: Path = ENCODER_ROOT / 'primary_site_encoder.pkl'
     cancer_type_encoder: Path = ENCODER_ROOT / 'cancer_type_encoder.pkl'
     sample_type_encoder: Path = ENCODER_ROOT / 'sample_type_encoder.pkl'
-    risk_cancer_vocab: Path = MAPPING_ROOT / 'survival_risk_cancer_vocab.json'
+    risk_preprocessing: Path = MAPPING_ROOT / 'survival_risk_preprocessing.json'
 
 
 @dataclass(frozen=True)
@@ -35,7 +35,7 @@ class ModelPaths:
     survival_risk: Path = MODEL_ROOT / 'finetuned' / 'survival_risk'
 
 
-def load_risk_cancer_vocab(path: Path | None = None) -> list[str]:
-    target = path or ResourcePaths().risk_cancer_vocab
+def load_risk_preprocessing(path: Path | None = None) -> dict:
+    target = path or ResourcePaths().risk_preprocessing
     with open(target, 'r', encoding='utf-8') as f:
         return json.load(f)

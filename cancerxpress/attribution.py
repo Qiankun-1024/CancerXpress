@@ -9,8 +9,12 @@ import pandas as pd
 import tensorflow as tf
 
 from .predictor import Predictor
-from .resources import ModelPaths, ResourcePaths, load_risk_cancer_vocab
+from .resources import ModelPaths, ResourcePaths, load_risk_preprocessing
 from .utils import model_loader
+from .risk_attribution import (
+    AxisRiskAttributionResult, exact_axis_shapley,
+    gene_axis_integrated_gradients, allocate_axis_risk,
+)
 
 
 @dataclass
@@ -49,6 +53,56 @@ class CancerXpressAttributor:
     def __init__(self, model_paths: ModelPaths | None = None, resource_paths: ResourcePaths | None = None):
         self.model_paths = model_paths or ModelPaths()
         self.resource_paths = resource_paths or ResourcePaths()
+
+    def attribute_axis_risk(self, expr, clinical, me_name, baseline_image,
+                            baseline_me, steps=64, internal_batch_size=32,
+                            maximum_relative_error=0.1, baseline_tolerance=1e-3):
+        """Single-sample gene -> ME -> log-risk allocation with frozen baselines.
+
+        baseline_me is an axis-indexed Series in unscaled ME units;
+        baseline_image is a preprocessed model-input image (not raw TPM).
+        All clinical covariates remain fixed during coalition evaluation.
+        """
+        expr = self._ensure_single_sample(expr)
+        metadata = load_risk_preprocessing(self.resource_paths.risk_preprocessing)
+        names = metadata['me_columns']
+        if me_name not in names:
+            raise ValueError('Unsupported me_name: ' + str(me_name))
+        if not isinstance(baseline_me, pd.Series) or baseline_me.index.has_duplicates:
+            raise ValueError('baseline_me must be a uniquely axis-indexed pandas Series')
+        reference = baseline_me.reindex(names).to_numpy(np.float32)
+        if not np.isfinite(reference).all():
+            raise ValueError('baseline_me must contain all finite model ME columns')
+        if not np.isfinite(baseline_tolerance) or baseline_tolerance < 0:
+            raise ValueError('baseline_tolerance must be finite and nonnegative')
+        predictor = Predictor(expr)
+        me_model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None)
+        values = me_model(predictor.data, training=False).numpy()
+        frame = pd.DataFrame(values, index=expr.index, columns=names)
+        features = predictor._prepare_run1_features(frame, clinical, metadata)
+        risk_model, _ = predictor._load_run1_survival_model(str(self.model_paths.survival_risk), metadata)
+        shapley = exact_axis_shapley(risk_model, features, reference)
+        index = names.index(me_name)
+        ig = gene_axis_integrated_gradients(me_model, predictor.data, baseline_image,
+                                            index, steps, internal_batch_size)
+        mismatch = ig.baseline_output - reference[index]
+        if np.any(np.abs(mismatch) > baseline_tolerance):
+            raise ValueError('IG baseline output does not match the selected Shapley ME baseline; '
+                             'use a matched baseline image and inspect baseline optimization QC')
+        genes = self._to_gene_level(expr, ig.values)
+        allocated, qc = allocate_axis_risk(
+            genes.to_numpy(), shapley.values[:, index],
+            ig.predicted_output - ig.baseline_output,
+            maximum_relative_error=maximum_relative_error)
+        qc.index = expr.index
+        qc['baseline_me_error'] = mismatch
+        qc['baseline_log_risk'] = shapley.baseline_log_risk
+        qc['predicted_log_risk'] = shapley.predicted_log_risk
+        qc['shapley_completeness_error'] = shapley.completeness_error
+        qc['image_ig_completeness_error'] = ig.completeness_error
+        return AxisRiskAttributionResult(
+            pd.DataFrame(shapley.values, index=expr.index, columns=names), genes,
+            pd.DataFrame(allocated, index=expr.index, columns=genes.columns), qc, me_name)
 
     @staticmethod
     def _ensure_single_sample(expr: pd.DataFrame) -> pd.DataFrame:
@@ -144,35 +198,30 @@ class CancerXpressAttributor:
     def attribute_survival_risk(
         self,
         expr: pd.DataFrame,
-        cancer_type: Sequence[str] | pd.Series,
+        clinical: pd.DataFrame,
         steps: int = 50,
     ) -> AttributionResult:
         expr = self._ensure_single_sample(expr)
         predictor = Predictor(expr)
-        vocab = load_risk_cancer_vocab(self.resource_paths.risk_cancer_vocab)
-        mapping = {ct: i for i, ct in enumerate(vocab)}
-        cancer_series = predictor._normalize_cancer_type(cancer_type, expr.index)
-        unknown_idx = len(vocab)
-        cancer_idx = cancer_series.map(mapping).fillna(unknown_idx).astype(np.int32).to_numpy()
-        ckpt_path = str(self.model_paths.survival_risk)
-        latest_ckpt = tf.train.latest_checkpoint(ckpt_path)
-        ckpt_vars = dict(tf.train.list_variables(latest_ckpt))
-        has_cancer_embedding = 'model/cancer_embedding/embeddings/.ATTRIBUTES/VARIABLE_VALUE' in ckpt_vars
-        if has_cancer_embedding:
-            model = predictor._build_survival_model_with_cancer_cov(len(vocab), str(self.model_paths.batch_correction))
-            ckpt = tf.train.Checkpoint(model=model)
-            ckpt.restore(latest_ckpt).expect_partial()
-            risk_scores = model((predictor.data, cancer_idx), training=False).numpy().reshape(-1)
-            ig = IntegratedGradients(model, steps=steps)
-            attrs = ig.compute_attributions(
-                tf.convert_to_tensor(predictor.data),
-                self._risk_target_fn(model, tf.convert_to_tensor(cancer_idx, dtype=tf.int32)),
-            )
-        else:
-            model, _ = predictor._load_survival_model_single_input(ckpt_path)
-            risk_scores = model(predictor.data, training=False).numpy().reshape(-1)
-            ig = IntegratedGradients(model, steps=steps)
-            attrs = ig.compute_attributions(tf.convert_to_tensor(predictor.data), self._risk_target_fn(model))
+        metadata = load_risk_preprocessing(self.resource_paths.risk_preprocessing)
+        me_model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None)
+        me_values = me_model(predictor.data, training=False).numpy()
+        me_frame = pd.DataFrame(me_values, index=expr.index, columns=metadata['me_columns'])
+        base_features = predictor._prepare_run1_features(me_frame, clinical, metadata)
+        risk_model, _ = predictor._load_run1_survival_model(str(self.model_paths.survival_risk), metadata)
+        risk_scores = risk_model(base_features, training=False).numpy().reshape(-1)
+
+        def target_fn(x):
+            me = me_model(x, training=False)
+            repeats = tf.shape(x)[0]
+            features = {'me': me}
+            for name, value in base_features.items():
+                if name != 'me':
+                    features[name] = tf.repeat(value, repeats=repeats, axis=0)
+            return tf.reshape(risk_model(features, training=False), (-1,))
+
+        ig = IntegratedGradients(risk_model, steps=steps)
+        attrs = ig.compute_attributions(tf.convert_to_tensor(predictor.data), target_fn)
         gene_level = self._to_gene_level(expr, attrs)
         return AttributionResult(
             attributions=gene_level,

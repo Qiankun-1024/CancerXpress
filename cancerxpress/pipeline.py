@@ -14,7 +14,7 @@ from .models.task_model import FCN, make_finetune_model
 from .attribution import AttributionResult, CancerXpressAttributor
 from .predictor import Predictor
 from .preprocess import ExpressionPreprocessor
-from .resources import ModelPaths, ResourcePaths, load_risk_cancer_vocab
+from .resources import ModelPaths, ResourcePaths
 
 
 ME_COLUMNS = [
@@ -76,14 +76,21 @@ class CancerXpress:
     def harmonize_expression(self, expr: pd.DataFrame, gene_id_type: str = 'auto') -> pd.DataFrame:
         return self.preprocessor.harmonize_expression(expr, gene_id_type=gene_id_type)
 
-    def batch_correct(self, expr_tpm: pd.DataFrame, batch_size: int = 256, gene_id_type: str = 'auto') -> tuple[pd.DataFrame, pd.DataFrame]:
+    def batch_correct(
+        self,
+        expr_tpm: pd.DataFrame,
+        batch_size: int = 256,
+        gene_id_type: str = 'auto',
+        stochastic: bool = False,
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Return latent and corrected expression; deterministic unless sampling is requested."""
         expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
         x = self.preprocessor.gene2img(expr, gene_id_type='ensembl')
         generator = self._load_generator()
         ds = tf.data.Dataset.from_tensor_slices(x).batch(batch_size)
         latent_list, observed_list = [], []
         for batch in ds:
-            latent = generator.encode(batch, reparameterize=True)
+            latent = generator.encode(batch, reparameterize=stochastic)
             observed = generator.decode(latent, apply_sigmoid=True)
             latent_list.append(latent.numpy())
             observed_list.append(observed.numpy())
@@ -114,17 +121,15 @@ class CancerXpress:
     def predict_survival_risk(
         self,
         expr_tpm: pd.DataFrame,
-        cancer_type: Optional[Sequence[str] | pd.Series] = None,
+        clinical: pd.DataFrame,
         batch_size: int = 256,
         gene_id_type: str = 'auto',
     ) -> pd.DataFrame:
         expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
         predictor = Predictor(expr)
-        vocab = load_risk_cancer_vocab(self.resource_paths.risk_cancer_vocab)
         return predictor.predict_survival_risk(
+            clinical=clinical,
             batch_size=batch_size,
-            cancer_type=cancer_type,
-            cancer_vocab=vocab,
             ckpt_path=str(self.model_paths.survival_risk),
         )
 
@@ -155,19 +160,30 @@ class CancerXpress:
     def attribute_survival_risk(
         self,
         expr_tpm: pd.DataFrame,
-        cancer_type: Optional[Sequence[str] | pd.Series] = None,
+        clinical: pd.DataFrame,
         steps: int = 50,
         gene_id_type: str = 'auto',
     ) -> AttributionResult:
         expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
-        if cancer_type is None:
-            raise ValueError('Survival risk attribution requires cancer_type.')
-        return self.attributor.attribute_survival_risk(expr, cancer_type=cancer_type, steps=steps)
+        return self.attributor.attribute_survival_risk(expr, clinical=clinical, steps=steps)
+
+    def attribute_axis_risk(self, expr_tpm, clinical, me_name, baseline_image,
+                            baseline_me, steps=64, internal_batch_size=32,
+                            maximum_relative_error=0.1, baseline_tolerance=1e-3,
+                            gene_id_type='auto'):
+        """Attribute one sample's selected ME risk contribution to all genes.
+
+        See README.md, Axis-Specific Risk Attribution, for baselines and QC.
+        """
+        expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
+        return self.attributor.attribute_axis_risk(
+            expr, clinical, me_name, baseline_image, baseline_me, steps,
+            internal_batch_size, maximum_relative_error, baseline_tolerance)
 
     def run_all(
         self,
         expr_tpm: pd.DataFrame,
-        cancer_type: Optional[Sequence[str] | pd.Series] = None,
+        clinical: pd.DataFrame,
         batch_size: int = 256,
         gene_id_type: str = 'auto',
     ) -> CancerXpressResult:
@@ -175,7 +191,7 @@ class CancerXpress:
         me = self.predict_me(expr_tpm, batch_size=batch_size, gene_id_type=gene_id_type)
         primary = self.predict_primary_site(expr_tpm, batch_size=batch_size, gene_id_type=gene_id_type)
         cancer = self.predict_cancer_type(expr_tpm, batch_size=batch_size, gene_id_type=gene_id_type)
-        risk = self.predict_survival_risk(expr_tpm, cancer_type=cancer_type, batch_size=batch_size, gene_id_type=gene_id_type)
+        risk = self.predict_survival_risk(expr_tpm, clinical=clinical, batch_size=batch_size, gene_id_type=gene_id_type)
         return CancerXpressResult(
             latent=latent,
             corrected_expression=corrected,

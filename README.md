@@ -15,6 +15,8 @@ It is designed for use cases where transcriptomic models need to generalize acro
 - survival risk prediction with external cohort evaluation
 - functional state characterization through low-dimensional transcriptomic axes
 - sample-level attribution through integrated gradients
+- hierarchical gene-to-axis-to-risk attribution with exact ME Shapley,
+  matched baselines, and completeness diagnostics
 - automatic gene ID conversion between `Ensembl` IDs and `HGNC symbols`
 - training and fine-tuning scripts under `training/`
 
@@ -33,7 +35,7 @@ Run the full inference pipeline on the example data:
 ```bash
 cancerxpress \
   --input examples/scanb_demo_3samples.tsv \
-  --cancer-type-file examples/scanb_demo_3samples_cancer_type.tsv \
+  --clinical-file examples/scanb_demo_3samples_label.tsv \
   --outdir output/demo \
   --task all \
   --gene-id-type ensembl
@@ -44,7 +46,7 @@ Run survival risk prediction only:
 ```bash
 cancerxpress \
   --input examples/scanb_demo_3samples.tsv \
-  --cancer-type-file examples/scanb_demo_3samples_cancer_type.tsv \
+  --clinical-file examples/scanb_demo_3samples_label.tsv \
   --outdir output/risk_demo \
   --task risk \
   --gene-id-type ensembl
@@ -57,16 +59,12 @@ import pandas as pd
 import cancerxpress as cx
 
 expr = pd.read_csv('examples/scanb_demo_3samples.tsv', sep='\t', index_col=0)
-cancer_type = pd.read_csv(
-    'examples/scanb_demo_3samples_cancer_type.tsv',
-    sep='\t',
-    index_col=0,
-)['cancer_type']
+clinical = pd.read_csv('examples/scanb_demo_3samples_label.tsv', sep='\t', index_col=0)
 
 model = cx.CancerXpress()
 latent, corrected = model.batch_correct(expr, gene_id_type='ensembl')
 module_eigenpathway_predictions = model.predict_me(expr, gene_id_type='ensembl')
-risk_scores = model.predict_survival_risk(expr, cancer_type=cancer_type, gene_id_type='ensembl')
+risk_scores = model.predict_survival_risk(expr, clinical=clinical, gene_id_type='ensembl')
 ```
 
 Run the standalone survival risk example:
@@ -120,11 +118,7 @@ import pandas as pd
 import cancerxpress as cx
 
 expr = pd.read_csv('examples/scanb_demo_3samples.tsv', sep='\t', index_col=0)
-cancer_type = pd.read_csv(
-    'examples/scanb_demo_3samples_cancer_type.tsv',
-    sep='\t',
-    index_col=0,
-)['cancer_type']
+clinical = pd.read_csv('examples/scanb_demo_3samples_label.tsv', sep='\t', index_col=0)
 
 model = cx.CancerXpress()
 latent, corrected = model.batch_correct(expr, gene_id_type='ensembl')
@@ -133,14 +127,14 @@ primary = model.predict_primary_site(expr, gene_id_type='ensembl')
 cancer = model.predict_cancer_type(expr, gene_id_type='ensembl')
 risk_scores = model.predict_survival_risk(
     expr,
-    cancer_type=cancer_type,
+    clinical=clinical,
     gene_id_type='ensembl',
 )
 
 module_eigenpathway_attribution = model.attribute_me(expr.iloc[[0]], me_name='MEblue', gene_id_type='ensembl')
 survival_risk_attribution = model.attribute_survival_risk(
     expr.iloc[[0]],
-    cancer_type='BRCA',
+    clinical=clinical.iloc[[0]],
     gene_id_type='ensembl',
 )
 ```
@@ -159,11 +153,11 @@ Main API methods:
 
 ## Survival Risk Prediction
 
-The packaged survival risk model is the current run1 dual-input model.
+The packaged survival risk model is the run1 ME-and-clinical Cox model. CancerXpress first predicts the eight Module Eigenpathway scores from expression and then combines them with the clinical covariates.
 It requires:
 
 - an expression matrix
-- one cancer type label for each sample
+- a clinical table containing `age`, `sex`, `race`, `tumor_stage`, and `cancer_type`
 
 ### Required Input Format
 
@@ -173,18 +167,17 @@ Expression matrix:
 - columns: genes
 - values: TPM-like expression matrix accepted by CancerXpress
 
-Cancer type file:
+Clinical file:
 
 - same sample order as the expression matrix, or matching sample IDs in the first column
-- must contain a column named `cancer_type`
+- must contain `age`, `sex`, `race`, `tumor_stage`, and `cancer_type`
 
-Example cancer type file:
+Example clinical file:
 
 ```tsv
-sample_id	cancer_type
-sample_1	BRCA
-sample_2	BRCA
-sample_3	BRCA
+sample_id	age	sex	race	tumor_stage	cancer_type
+sample_1	62	female	white	Stage II	BRCA
+sample_2	55	male	asian	Stage III	LUAD
 ```
 
 ### Python Example
@@ -194,16 +187,12 @@ import pandas as pd
 import cancerxpress as cx
 
 expr = pd.read_csv('examples/scanb_demo_3samples.tsv', sep='\t', index_col=0)
-cancer_type = pd.read_csv(
-    'examples/scanb_demo_3samples_cancer_type.tsv',
-    sep='\t',
-    index_col=0,
-)['cancer_type']
+clinical = pd.read_csv('examples/scanb_demo_3samples_label.tsv', sep='\t', index_col=0)
 
 model = cx.CancerXpress()
 risk_scores = model.predict_survival_risk(
     expr_tpm=expr,
-    cancer_type=cancer_type,
+    clinical=clinical,
     gene_id_type='ensembl',
 )
 print(risk_scores)
@@ -216,18 +205,14 @@ import pandas as pd
 import cancerxpress as cx
 
 expr = pd.read_csv('examples/scanb_demo_3samples.tsv', sep='\t', index_col=0)
-cancer_type = pd.read_csv(
-    'examples/scanb_demo_3samples_cancer_type.tsv',
-    sep='\t',
-    index_col=0,
-)['cancer_type']
+clinical = pd.read_csv('examples/scanb_demo_3samples_label.tsv', sep='\t', index_col=0)
 
 sample_id = expr.index[0]
 
 model = cx.CancerXpress()
 attribution = model.attribute_survival_risk(
     expr_tpm=expr.loc[[sample_id]],
-    cancer_type=cancer_type.loc[[sample_id]],
+    clinical=clinical.loc[[sample_id]],
     gene_id_type='ensembl',
 )
 ```
@@ -237,7 +222,7 @@ attribution = model.attribute_survival_risk(
 ```bash
 cancerxpress \
   --input examples/scanb_demo_3samples.tsv \
-  --cancer-type-file examples/scanb_demo_3samples_cancer_type.tsv \
+  --clinical-file examples/scanb_demo_3samples_label.tsv \
   --outdir output/risk_demo \
   --task risk \
   --gene-id-type ensembl
@@ -260,6 +245,47 @@ For attribution output:
 - `survival_risk_prediction.tsv`: predicted risk score for the input sample
 - `survival_risk_attribution.tsv`: gene-level integrated gradients attribution for survival risk
 
+### Axis-Specific Risk Attribution
+
+`attribute_axis_risk` explains one patient's selected functional-axis risk
+contribution: exact ME Shapley followed by gene-to-axis integrated gradients
+(IG). Clinical inputs remain fixed. This differs from the direct gene-to-risk
+IG returned by `attribute_survival_risk`.
+
+```python
+import numpy as np
+import pandas as pd
+import cancerxpress as cx
+
+# expr and clinical: sample-indexed inputs as in the examples above.
+# Use the frozen training reference for this cancer and model/fold.
+baseline_me = pd.read_csv('baseline_me.tsv', sep='\t', index_col=0).iloc[0]
+result = cx.CancerXpress().attribute_axis_risk(
+    expr.iloc[[0]], clinical.loc[expr.index[:1]], me_name='MEred',
+    baseline_image=np.load('baseline_image.npy'),
+    baseline_me=baseline_me,  # Series indexed by the eight ME names
+    steps=64, internal_batch_size=16, gene_id_type='ensembl',
+)
+result.axis_shapley.to_csv('axis_shapley.tsv', sep='\t')
+result.gene_risk_contribution.to_csv('gene_axis_risk.tsv', sep='\t')
+print(result.diagnostics)
+```
+
+- `baseline_image` is a normalized model-input image, not raw TPM. Its selected
+  ME prediction must match `baseline_me` (default tolerance: 0.001 ME units).
+  Use training-only references; do not recenter on the external cohort.
+- Gene contributions are `axis_shapley * gene_IG / sum(gene_IG)`, using all
+  mapped genes. They are signed log-risk allocations, not percentages, causal
+  effects, or exact gene-level Shapley values.
+- `result.gene_to_axis_ig` retains the original gene IG. Diagnostics report
+  completeness and allocation validity. A near-zero denominator or excessive
+  IG error produces NaN contributions, not zero importance.
+- Lower-level functions are also available: `exact_axis_shapley`,
+  `gene_axis_integrated_gradients`, `allocate_axis_risk`, and
+  `optimize_axis_baseline`. The last fits a synthetic baseline from a training
+  mean input image, a binary mapped-gene pixel mask, and a frozen ME reference;
+  inspect its returned optimization history before use.
+
 ## CLI
 
 ### Run the Full Inference Pipeline
@@ -267,7 +293,7 @@ For attribution output:
 ```bash
 cancerxpress \
   --input examples/scanb_demo_3samples.tsv \
-  --cancer-type-file examples/scanb_demo_3samples_cancer_type.tsv \
+  --clinical-file examples/scanb_demo_3samples_label.tsv \
   --outdir output/demo \
   --task all \
   --gene-id-type ensembl
@@ -307,7 +333,7 @@ If the input matrix uses gene symbols instead of Ensembl IDs:
 ```bash
 cancerxpress \
   --input your_symbol_expression.tsv \
-  --cancer-type-file your_cancer_type.tsv \
+  --clinical-file your_clinical_data.tsv \
   --outdir output/run_symbol \
   --task all \
   --gene-id-type symbol
@@ -365,5 +391,5 @@ This keeps the project much cleaner for packaging, publication, and long-term ma
 
 ## Notes
 
-- The packaged survival risk model uses the current run1 dual-input checkpoint and requires `cancer_type` during prediction.
+- The packaged run1 survival model requires expression plus `age`, `sex`, `race`, `tumor_stage`, and `cancer_type` for every sample.
 - Training scripts do not automatically download datasets. You need to provide your own expression matrices and labels.

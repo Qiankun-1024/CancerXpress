@@ -16,21 +16,21 @@ import cancerxpress as cx
 
 def main() -> None:
     expr_file = PROJECT_ROOT / "examples" / "scanb_demo_3samples.tsv"
-    cancer_type_file = PROJECT_ROOT / "examples" / "scanb_demo_3samples_cancer_type.tsv"
+    clinical_file = PROJECT_ROOT / "examples" / "scanb_demo_3samples_label.tsv"
     outdir = PROJECT_ROOT / "output" / "risk_attribution_demo"
     outdir.mkdir(parents=True, exist_ok=True)
 
     expr = pd.read_csv(expr_file, sep="\t", index_col=0)
-    cancer_type = pd.read_csv(cancer_type_file, sep="\t", index_col=0)["cancer_type"]
+    clinical = pd.read_csv(clinical_file, sep="\t", index_col=0)
 
     sample_id = expr.index[0]
     sample_expr = expr.loc[[sample_id]]
-    sample_cancer_type = cancer_type.loc[[sample_id]]
+    sample_clinical = clinical.loc[[sample_id]]
 
     model = cx.CancerXpress()
     result = model.attribute_survival_risk(
         expr_tpm=sample_expr,
-        cancer_type=sample_cancer_type,
+        clinical=sample_clinical,
         gene_id_type="ensembl",
     )
 

@@ -1,1 +1,2 @@
 recursive-include resources *
+include tests/test_risk_attribution.py
