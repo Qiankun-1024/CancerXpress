@@ -26,12 +26,12 @@ clinical/biological label. Outputs are for research, not clinical diagnosis.
 
 ## Quick Start
 
-This checkout contains the **1.1 development series**, targeting Python 3.8-3.13.
-Use Python 3.11 or 3.12 for a new environment and install from this checkout:
+Choose one of the two [installation methods](#installation):
 
-```bash
-python -m pip install .
-```
+| Method | Current version | Python |
+| --- | --- | --- |
+| Download the GitHub project and install locally | 1.1 development series | 3.8-3.13; 3.11 or 3.12 recommended |
+| Install from PyPI | 1.0.0 released version | 3.8 only |
 
 Prepare the separate model bundle before inference. Follow the
 [step-by-step tutorial](tutorials/01_quickstart.md) for TPM inputs,
@@ -43,12 +43,9 @@ The published PyPI `1.0.0` release remains Python-3.8-only until a new release
 is published. Do not apply its historical `requirements-release-lock.txt`
 constraints to this development version.
 
-For an editable installation:
-
-```bash
-cd CancerXpress
-python -m pip install -e .
-```
+The examples below use files from the GitHub project. A PyPI installation does
+not include those example files; download the project or use your own TPM and
+clinical files.
 
 Run the full inference pipeline on the example data:
 
@@ -131,35 +128,48 @@ Python 3.14 and later are not yet advertised as supported. See
 [Installation and Compatibility](tutorials/installation.md) for runtime
 requirements and the model-regression test procedure.
 
-### Install Directly from GitHub
+### Option 1: Download the GitHub Project and Install Locally
 
-After the 1.1 changes are pushed, install their commit in a supported Python
-environment with Git installed:
-
-```bash
-python -m pip install "git+https://github.com/Qiankun-1024/CancerXpress.git@main"
-```
-
-For a reproducible installation, replace `main` with a specific commit hash
-or release tag. This installs the Python package and its declared dependencies;
-it does **not** download the large model checkpoints or create a local checkout
-of the example files.
-
-Prepare the local model files as described in [Model Resources and Paths](#model-resources-and-paths)
-before running predictions.
-`requirements-release-lock.txt` is retained only to reproduce the original
-Python 3.8 / TensorFlow 2.4 release. Do not use it for the new runtime.
-Model and reference-data installation remain separate and manual.
-
-### Install from a Local Checkout
-
-Use this option to access the examples or edit the source:
+Use a dedicated Python 3.8-3.13 environment. This option includes the source,
+tutorials, and example files. Download the project using Git:
 
 ```bash
 git clone https://github.com/Qiankun-1024/CancerXpress.git
 cd CancerXpress
-python -m pip install -e .
+python -m pip install --upgrade pip
+python -m pip install .
 ```
+
+Alternatively, select **Code > Download ZIP** on the
+[GitHub repository](https://github.com/Qiankun-1024/CancerXpress), extract it,
+and run `python -m pip install .` inside the extracted `CancerXpress-main`
+directory. Git is not needed for the ZIP method.
+
+If you plan to edit the source, use `python -m pip install -e .` instead.
+For reproducibility, use a specific Git commit or release tag rather than a
+moving branch.
+
+### Option 2: Install from PyPI
+
+The currently published [PyPI release](https://pypi.org/project/cancerxpress/)
+is **1.0.0 and requires Python 3.8**. It does not yet include the multi-Python
+runtime changes on GitHub. In a dedicated Python 3.8 environment, run:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install "cancerxpress==1.0.0"
+python -m pip check
+```
+
+For Python 3.9-3.13, use Option 1 until a compatible release is published on
+PyPI. The historical `requirements-release-lock.txt` can be used as pip
+constraints to reproduce the tested 1.0.0 dependency versions; do not apply
+that file to the GitHub development version.
+
+**Both methods install code and dependencies only.** Model parameters and
+reference data remain separate and must be installed manually. Prepare the
+local model files as described in [Model Resources and Paths](#model-resources-and-paths)
+before running predictions.
 
 ### Read the Docs
 
