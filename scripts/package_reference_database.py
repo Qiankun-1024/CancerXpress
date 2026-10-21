@@ -9,6 +9,7 @@ import sys
 import numpy as np
 import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from cancerxpress._legacy import axis_payload, axis_labels
 
 
 def digest(path):
@@ -72,7 +73,7 @@ def main():
         'Matrices are samples x features; join by sample ID, never assume row order.\n'
         'Expression and original metadata are individual gzip files.\n'
         'historical_biological_representation is original, NOT the frozen-model query atlas.\n'
-        'reference_atlas contains latent and ME recomputed from the released model.\n'
+        'reference_atlas contains latent and functional-axis recomputed from the released model.\n'
         'Missing cancer labels remain missing: no imputation, no sample removal.\n'
         'Unlabelled samples support unrestricted queries, not cancer-stratified adaptation.\n'
         'Original metadata includes clinical fields: verify source redistribution permissions.\n'
@@ -97,7 +98,7 @@ def main():
     if state_path.exists() and json.loads(state_path.read_text()) != state:
         raise ValueError('Checkpoint data/model signature changed; choose a new checkpoint directory')
     write_json(state_path, state)
-    z_all, me_all, seen = [], [], []
+    z_all, axes_all, seen = [], [], []
     for number, batch in enumerate(pd.read_csv(a.source / 'raw_tpm.tsv', sep='\t', index_col=0, chunksize=64)):
         checkpoint = cache / ('features_%06d.npz' % number)
         if checkpoint.exists():
@@ -105,31 +106,32 @@ def main():
                 if not np.array_equal(saved['sample_ids'], batch.index.astype(str)):
                     raise ValueError('Checkpoint sample order mismatch')
                 z = pd.DataFrame(saved['latent'], index=batch.index, columns=saved['latent_columns'])
-                me = pd.DataFrame(saved['me'], index=batch.index, columns=saved['me_columns'])
+                functional_axes = pd.DataFrame(axis_payload(saved), index=batch.index,
+                    columns=axis_labels(axis_payload(saved, 'functional_axis_columns')))
         else:
-            z, me = model.encode_features(batch, batch_size=16, gene_id_type='ensembl')
+            z, functional_axes = model.encode_features(batch, batch_size=16, gene_id_type='ensembl')
             tmp = checkpoint.with_name(checkpoint.name + '.partial')
             with tmp.open('wb') as stream:
                 np.savez_compressed(stream, sample_ids=np.asarray(batch.index, dtype=str),
-                                    latent=z.values, me=me.values,
+                                    latent=z.values, functional_axes=functional_axes.values,
                                     latent_columns=np.asarray(z.columns, dtype=str),
-                                    me_columns=np.asarray(me.columns, dtype=str))
+                                    functional_axis_columns=np.asarray(functional_axes.columns, dtype=str))
             tmp.replace(checkpoint)
-        if not np.isfinite(z.values).all() or not np.isfinite(me.values).all():
+        if not np.isfinite(z.values).all() or not np.isfinite(functional_axes.values).all():
             raise ValueError('Nonfinite frozen features')
-        z_all.append(z); me_all.append(me); seen.extend(batch.index)
+        z_all.append(z); axes_all.append(functional_axes); seen.extend(batch.index)
         print('Frozen features', len(seen), '/', len(meta), flush=True)
     if len(seen) != len(set(seen)) or set(seen) != set(meta.index):
         raise ValueError('Expression/metadata sample mismatch')
     # String column names are consistent for newly computed and cached batches.
     for z in z_all: z.columns = z.columns.astype(str)
-    for me in me_all: me.columns = me.columns.astype(str)
-    atlas = ReferenceAtlas(pd.concat(z_all), pd.concat(me_all), meta.loc[seen], signature)
+    for functional_axes in axes_all: functional_axes.columns = functional_axes.columns.astype(str)
+    atlas = ReferenceAtlas(pd.concat(z_all), pd.concat(axes_all), meta.loc[seen], signature)
     atlas_dir = a.output / 'reference_atlas'
     if atlas_dir.exists():
         old = ReferenceAtlas.load(atlas_dir)
         if (old.model_signature != signature or not old.latent.equals(atlas.latent)
-                or not old.me.equals(atlas.me) or not old.metadata.index.equals(atlas.metadata.index)):
+                or not old.functional_axes.equals(atlas.functional_axes) or not old.metadata.index.equals(atlas.metadata.index)):
             raise ValueError('Existing atlas does not match computed features')
     else:
         stage = cache / 'atlas_stage'

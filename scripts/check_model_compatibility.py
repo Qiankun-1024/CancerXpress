@@ -29,13 +29,13 @@ def main():
         "tumor_stage": ["stage ii"] * 2, "cancer_type": ["BRCA"] * 2,
     }, index=expr.index)
     latent, corrected = model.batch_correct(expr, gene_id_type="ensembl")
-    query_latent, query_me = model.encode_features(expr, gene_id_type="ensembl")
+    query_latent, query_axes = model.encode_features(expr, gene_id_type="ensembl")
     attribution = model.attribute_axis_risk(
-        expr.iloc[:1], clinical.iloc[:1], "MEred", expr.iloc[1:],
+        expr.iloc[:1], clinical.iloc[:1], "developmental_regulation", expr.iloc[1:],
         steps=64, internal_batch_size=8, gene_id_type="ensembl")
     tables = {
         "latent": latent, "corrected": corrected, "query_latent": query_latent,
-        "query_me": query_me, "me": model.predict_me(expr, gene_id_type="ensembl"),
+        "query_axes": query_axes, "functional_axes": model.predict_functional_axes(expr, gene_id_type="ensembl"),
         "risk": model.predict_survival_risk(expr, clinical, gene_id_type="ensembl"),
         "axis_shapley": attribution.axis_shapley,
         "gene_ig": attribution.gene_to_axis_ig,
@@ -54,7 +54,9 @@ def main():
         differences, relative_errors = {}, {}
         with np.load(args.baseline, allow_pickle=False) as baseline:
             for name, actual in arrays.items():
-                expected = baseline[name]
+                # Historical regression fixtures retain the pre-migration keys.
+                old_key = {'functional_axes': 'me', 'query_axes': 'query_me'}.get(name, name)
+                expected = baseline[name] if name in baseline else baseline[old_key]
                 # CPU kernel changes can alter the last few floating-point digits.
                 np.testing.assert_allclose(actual, expected, rtol=2e-4, atol=2e-5,
                                            err_msg=name)

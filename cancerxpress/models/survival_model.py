@@ -4,8 +4,8 @@ import tensorflow as tf
 from .._keras import keras
 
 
-class ClinicalMERiskModel(keras.Model):
-    """Run1 Cox model using predicted ME scores and clinical covariates."""
+class ClinicalAxisRiskModel(keras.Model):
+    """Run1 Cox model using predicted functional-axis scores and clinical covariates."""
 
     def __init__(self, n_sex: int, n_race: int, n_stage: int, n_cancer: int):
         super().__init__()
@@ -28,7 +28,7 @@ class ClinicalMERiskModel(keras.Model):
 
     def call(self, inputs, training=False):
         features = tf.concat([
-            inputs["me"],
+            inputs["functional_axes"],
             inputs["age"],
             self.sex_emb(inputs["sex"]),
             self.race_emb(inputs["race"]),

@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from .resources import ResourcePaths
+from .validation import validate_expression
 
 
 @dataclass
@@ -40,6 +41,7 @@ class GeneIDConverter:
         return 'ensembl' if ensembl_hits >= symbol_hits else 'symbol'
 
     def to_ensembl(self, expr: pd.DataFrame, gene_id_type: str = 'auto') -> pd.DataFrame:
+        validate_expression(expr)
         if gene_id_type == 'auto':
             gene_id_type = self.infer_id_type(expr.columns)
 
@@ -81,6 +83,10 @@ class ExpressionPreprocessor:
 
     def harmonize_expression(self, expr: pd.DataFrame, gene_id_type: str = 'auto', fill_value: float = 0.0) -> pd.DataFrame:
         expr_ensembl = self.converter.to_ensembl(expr, gene_id_type=gene_id_type)
+        if not np.isfinite(fill_value) or fill_value < 0:
+            raise ValueError('fill_value must be finite and nonnegative')
+        if not expr_ensembl.columns.isin(self.training_gene_order).any():
+            raise ValueError('No input genes match model genes; check gene_id_type and gene IDs')
         expr_ensembl = expr_ensembl.reindex(columns=self.training_gene_order, fill_value=fill_value)
         return expr_ensembl
 

@@ -8,9 +8,11 @@ import tensorflow as tf
 
 from .preprocess import ExpressionPreprocessor, PreprocessAssets
 from .models import task_model
-from .models.survival_model import ClinicalMERiskModel
+from .models.survival_model import ClinicalAxisRiskModel
 from .resources import ModelPaths, ResourcePaths, load_risk_preprocessing
 from .utils import data_normalizer, model_loader
+from .validation import align_clinical
+from .axes import FUNCTIONAL_AXIS_NAMES
 
 
 class Predictor:
@@ -69,7 +71,8 @@ class Predictor:
         }
         return mapping.get(value, 'unknown')
 
-    def _prepare_run1_features(self, me: pd.DataFrame, clinical: pd.DataFrame, metadata: dict):
+    def _prepare_run1_features(self, functional_axes: pd.DataFrame, clinical: pd.DataFrame, metadata: dict):
+        clinical = align_clinical(clinical, self.sample_id, metadata['clinical_columns'])
         required = set(metadata['clinical_columns'])
         missing_columns = required - set(clinical.columns)
         if missing_columns:
@@ -101,7 +104,7 @@ class Predictor:
             return encoded.astype(np.int32).to_numpy()
 
         return {
-            'me': tf.convert_to_tensor(me[metadata['me_columns']].to_numpy(np.float32)),
+            'functional_axes': tf.convert_to_tensor(functional_axes[metadata['functional_axis_columns']].to_numpy(np.float32)),
             'age': tf.convert_to_tensor(age_z.reshape(-1, 1), dtype=tf.float32),
             'sex': tf.convert_to_tensor(encode(sex, metadata['sex_vocab'], fallback='female')),
             'race': tf.convert_to_tensor(encode(race, metadata['race_vocab'], fallback='unknown')),
@@ -117,19 +120,19 @@ class Predictor:
         variables = dict(tf.train.list_variables(latest_ckpt))
         marker = 'model/cancer_emb/embeddings/.ATTRIBUTES/VARIABLE_VALUE'
         if marker not in variables:
-            raise ValueError(f'风险checkpoint不是run1 ME+clinical模型: {latest_ckpt}')
+            raise ValueError(f'风险checkpoint不是run1 functional-axis+clinical模型: {latest_ckpt}')
         expected = len(metadata['cancer_vocab'])
         if int(variables[marker][0]) != expected:
             raise ValueError('风险checkpoint与预处理癌种词表维度不一致。')
 
-        model = ClinicalMERiskModel(
+        model = ClinicalAxisRiskModel(
             n_sex=len(metadata['sex_vocab']),
             n_race=len(metadata['race_vocab']),
             n_stage=len(metadata['stage_vocab']),
             n_cancer=expected,
         )
         dummy = {
-            'me': tf.zeros((1, 8), tf.float32),
+            'functional_axes': tf.zeros((1, 8), tf.float32),
             'age': tf.zeros((1, 1), tf.float32),
             'sex': tf.zeros((1,), tf.int32),
             'race': tf.zeros((1,), tf.int32),
@@ -150,9 +153,9 @@ class Predictor:
         return np.concatenate(out, axis=0)
 
     def predict_pathway_axis(self, batch_size=256, return_type='score'):
-        model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None, encoder_ckpt_path=str(self.model_paths.batch_correction))
+        model = model_loader.load_predict_model('latest', str(self.model_paths.functional_axes), 8, None, encoder_ckpt_path=str(self.model_paths.batch_correction))
         preds = self._batch_predict(model, self.data, batch_size)
-        class_names = ['MEblack', 'MEblue', 'MEbrown', 'MEgreen', 'MEpink', 'MEred', 'MEturquoise', 'MEyellow']
+        class_names = list(FUNCTIONAL_AXIS_NAMES)
         if return_type == 'label':
             binary_preds = []
             for i, _ in enumerate(class_names):
@@ -171,8 +174,8 @@ class Predictor:
     ):
         ckpt_path = ckpt_path or str(self.model_paths.survival_risk)
         metadata = load_risk_preprocessing(self.resource_paths.risk_preprocessing)
-        me = self.predict_pathway_axis(batch_size=batch_size, return_type='score')
-        features = self._prepare_run1_features(me, clinical, metadata)
+        functional_axes = self.predict_pathway_axis(batch_size=batch_size, return_type='score')
+        features = self._prepare_run1_features(functional_axes, clinical, metadata)
         model, _ = self._load_run1_survival_model(ckpt_path, metadata)
         risk_scores = model(features, training=False).numpy().reshape(-1)
         return pd.DataFrame({'risk_score': risk_scores}, index=self.sample_id)

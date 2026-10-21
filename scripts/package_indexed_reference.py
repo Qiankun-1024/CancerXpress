@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from cancerxpress._legacy import axis_payload, axis_labels
 
 
 def digest(path):
@@ -45,9 +46,9 @@ def package(source, atlas_root, output, samples_per_shard=1000):
  spec=json.loads((atlas_root/'atlas.json').read_text())
  if meta.index.has_duplicates or set(meta.index)!=set(metadata):raise ValueError('Atlas IDs mismatch')
  arrays=np.load(atlas_root/'features.npz',allow_pickle=False)
- latent=arrays['latent'];me=arrays['me'];arrays.close()
- if len(latent)!=len(meta) or len(me)!=len(meta):raise ValueError('Atlas dimensions mismatch')
- if not np.isfinite(latent).all() or not np.isfinite(me).all():raise ValueError('Nonfinite atlas')
+ latent=arrays['latent'];functional_axes=axis_payload(arrays);arrays.close()
+ if len(latent)!=len(meta) or len(functional_axes)!=len(meta):raise ValueError('Atlas dimensions mismatch')
+ if not np.isfinite(latent).all() or not np.isfinite(functional_axes).all():raise ValueError('Nonfinite atlas')
  lookup={sid:i for i,sid in enumerate(meta.index)}
  shard_count=(len(meta)+samples_per_shard-1)//samples_per_shard
  if not shard_count:raise ValueError('Empty reference database')
@@ -78,15 +79,15 @@ def package(source, atlas_root, output, samples_per_shard=1000):
     row['components']['raw_tpm']=add_member(archive,prefix+'.raw_tpm.tsv.gz',rv)
     row['components']['corrected_expression']=add_member(archive,prefix+'.corrected_expression.tsv.gz',cv)
     i=lookup[sid]
-    payload={'sample_id':sid,'latent':latent[i].tolist(),'me':me[i].tolist(),'metadata':metadata[sid]}
+    payload={'sample_id':sid,'latent':latent[i].tolist(),'functional_axes':functional_axes[i].tolist(),'metadata':metadata[sid]}
     row['components']['features']=add_member(archive,prefix+'.features.json.gz',json.dumps(payload,allow_nan=False).encode())
     records[sid]=row;seen.add(sid);n+=1
    if seen!=set(metadata):raise ValueError('Expression missing metadata samples')
    if archive:
     archive.close();archive=None;shards[shard]={'size':path.stat().st_size,'sha256':digest(path)}
-  index={'format':'cancerxpress-sample-ranges-v1','n_samples':n,'samples_per_shard':samples_per_shard,
+  index={'format':'cancerxpress-sample-ranges-v2','n_samples':n,'samples_per_shard':samples_per_shard,
          'model_signature':spec['model_signature'],
-         'columns':{'raw_tpm':rh,'corrected_expression':ch,'latent':spec['latent_columns'],'me':spec['me_columns']},
+         'columns':{'raw_tpm':rh,'corrected_expression':ch,'latent':spec['latent_columns'],'functional_axes':axis_labels(axis_payload(spec, 'functional_axis_columns'))},
          'shards':shards,'samples':records}
   # Validate all byte locations and hashes without extracting or unpickling data.
   for shard in shards:

@@ -12,6 +12,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import requests
+from ._legacy import axis_payload, axis_labels
 
 
 class RangeNotSupportedError(RuntimeError):
@@ -39,10 +40,11 @@ class SampleDatabase:
             raise FileNotFoundError('Place reference_index.json.gz and its ZIP shards in the '
                                     'reference directory manually. Missing: ' + str(self.index_path))
         self.index = json.loads(_unzip(self.index_path.read_bytes(), 256*1024*1024))
-        if self.index.get('format') != 'cancerxpress-sample-ranges-v1':
+        if self.index.get('format') not in ('cancerxpress-sample-ranges-v1', 'cancerxpress-sample-ranges-v2'):
             raise ValueError('Unsupported sample index format')
         if self.index.get('n_samples') != len(self.index['samples']):
             raise ValueError('Sample index count mismatch')
+        self.index['columns']['functional_axes'] = axis_labels(axis_payload(self.index['columns']))
         if base_url is not None and not base_url.startswith('https://'):
             raise ValueError('Reference downloads require HTTPS')
         self.base_url = base_url.rstrip('/')+'/' if base_url else None
@@ -92,8 +94,8 @@ class SampleDatabase:
         """Read only features and metadata for use with query/adapt, not expression."""
         from .reference import ReferenceAtlas
         data = self.fetch(self.sample_ids if sample_ids is None else sample_ids,
-                          components=['latent', 'me', 'metadata'])
-        return ReferenceAtlas(data['latent'], data['me'], data['metadata'],
+                          components=['latent', 'functional_axes', 'metadata'])
+        return ReferenceAtlas(data['latent'], data['functional_axes'], data['metadata'],
                               self.index['model_signature'])
 
     @classmethod
@@ -192,12 +194,12 @@ class SampleDatabase:
             self._store(target,data)
         return _unzip(data,16*1024*1024)
 
-    def fetch(self, sample_ids, components=('raw_tpm','corrected_expression','latent','me','metadata'),
+    def fetch(self, sample_ids, components=('raw_tpm','corrected_expression','latent','functional_axes','metadata'),
               allow_full_shard=False):
         """Return sample-indexed DataFrames; download only requested components."""
         ids=[sample_ids] if isinstance(sample_ids,str) else list(sample_ids)
         components=[components] if isinstance(components,str) else list(components)
-        allowed={'raw_tpm','corrected_expression','latent','me','metadata'}
+        allowed={'raw_tpm','corrected_expression','latent','functional_axes','metadata'}
         if not ids or len(set(ids))!=len(ids):raise ValueError('Supply unique nonempty sample IDs')
         if not components or len(set(components))!=len(components) or set(components)-allowed:
             raise ValueError('Invalid components')
@@ -211,11 +213,11 @@ class SampleDatabase:
                 arr=np.array(text.split('\t'),dtype=float)
                 if len(arr)!=len(self.index['columns'][name]):raise ValueError('Gene count mismatch')
                 values[name].append(arr)
-            if set(components)&{'latent','me','metadata'}:
+            if set(components)&{'latent','functional_axes','metadata'}:
                 features=json.loads(self._component(row,'features',allow_full_shard))
                 if features['sample_id']!=sid:raise ValueError('Sample ID mismatch')
-                for name in set(components)&{'latent','me','metadata'}:
-                    values[name].append(features[name])
+                for name in set(components)&{'latent','functional_axes','metadata'}:
+                    values[name].append(axis_payload(features) if name == 'functional_axes' else features[name])
         return {name:pd.DataFrame(data,index=pd.Index(ids,name='sample_id'),
                     columns=None if name=='metadata' else self.index['columns'][name])
                 for name,data in values.items()}

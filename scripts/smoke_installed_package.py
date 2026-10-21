@@ -21,11 +21,11 @@ expr = pd.DataFrame(rng.gamma(2, 5, size=(2, len(genes))), columns=genes, index=
 clinical = pd.DataFrame({'age': [60, 61], 'sex': ['female'] * 2, 'race': ['white'] * 2,
                          'tumor_stage': ['stage ii'] * 2, 'cancer_type': ['BRCA'] * 2}, index=expr.index)
 report = {'package': cx.__file__, 'synthetic_samples': True}
-me = model.predict_me(expr, gene_id_type='ensembl')
+functional_axes = model.predict_functional_axes(expr, gene_id_type='ensembl')
 risk = model.predict_survival_risk(expr, clinical, gene_id_type='ensembl')
-assert me.shape == (2, 8) and np.isfinite(me.values).all()
+assert functional_axes.shape == (2, 8) and np.isfinite(functional_axes.values).all()
 assert risk.shape == (2, 1) and np.isfinite(risk.values).all()
-report['ME_prediction'] = 'passed'
+report['functional_axis_prediction'] = 'passed'
 report['clinical_risk_prediction'] = 'passed'
 for name in ['primary_site', 'cancer_type']:
     assert not hasattr(model, 'predict_' + name)
@@ -33,7 +33,7 @@ report['classification_prediction_removed'] = True
 latent, corrected = model.batch_correct(expr.iloc[:1], gene_id_type='ensembl')
 assert latent.shape == (1, 100) and np.isfinite(corrected.values).all()
 report['batch_correction'] = 'passed'
-result = model.attribute_axis_risk(expr.iloc[:1], clinical.iloc[:1], 'MEred', expr.iloc[1:],
+result = model.attribute_axis_risk(expr.iloc[:1], clinical.iloc[:1], 'developmental_regulation', expr.iloc[1:],
                                    steps=64, internal_batch_size=8, gene_id_type='ensembl')
 assert np.isfinite(result.gene_to_axis_ig.values).all()
 assert np.abs(result.diagnostics.shapley_completeness_error.iloc[0]) < 1e-5
@@ -42,9 +42,9 @@ report['gene_IG_shape'] = list(result.gene_to_axis_ig.shape)
 # A second instance with a different root must not change the first instance.
 if args.source_resources:
     original = cx.CancerXpress(resource_dir=args.source_resources)
-    source_me = original.predict_me(expr, gene_id_type='ensembl')
+    source_axes = original.predict_functional_axes(expr, gene_id_type='ensembl')
     source_risk = original.predict_survival_risk(expr, clinical, gene_id_type='ensembl')
-    np.testing.assert_allclose(me.values, source_me.values, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(functional_axes.values, source_axes.values, rtol=1e-5, atol=1e-6)
     np.testing.assert_allclose(risk.values, source_risk.values, rtol=1e-5, atol=1e-6)
     report['export_prediction_equivalence'] = 'passed'
 manifest = cx.verify_resources(args.resources)

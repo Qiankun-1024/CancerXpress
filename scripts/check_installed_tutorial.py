@@ -32,8 +32,8 @@ def main():
         r"<!-- runnable -->\s*```python\n(.*?)\n```",
         Path(args.tutorial).read_text(encoding="utf-8"), re.S,
     )
-    if len(blocks) != 6:
-        raise RuntimeError("Expected six mandatory tutorial blocks")
+    if len(blocks) != 5:
+        raise RuntimeError("Expected five mandatory tutorial blocks")
     report = {"version": version("cancerxpress"), "package": cx.__file__,
               "synthetic_tutorial_inputs": True, "blocks": []}
     namespace = {"__name__": "__tutorial__"}
@@ -47,8 +47,8 @@ def main():
     expression = namespace["expr"].iloc[[0]]
     clinical = namespace["clinical"].iloc[[0]]
     for name, result in (
-        ("me_ig", model.attribute_me(
-            expression, "MEred", steps=16, gene_id_type="ensembl")),
+        ("functional_axis_ig", model.attribute_functional_axis(
+            expression, "developmental_regulation", steps=16, gene_id_type="ensembl")),
         ("risk_ig", model.attribute_survival_risk(
             expression, clinical, steps=16, gene_id_type="ensembl")),
     ):
@@ -108,7 +108,7 @@ def main():
         database = cx.SampleDatabase.from_directory(args.database)
         ids = database.sample_ids[:2]
         components = database.fetch(ids, components=[
-            "raw_tpm", "corrected_expression", "latent", "me", "metadata",
+            "raw_tpm", "corrected_expression", "latent", "functional_axes", "metadata",
         ])
         for name, frame in components.items():
             assert list(frame.index) == list(ids)

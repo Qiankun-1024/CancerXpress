@@ -49,36 +49,36 @@ def _positive_integer(value, name):
         raise ValueError(name + ' must be a positive integer')
 
 
-def exact_axis_shapley(model, features, baseline_me, coalition_batch_size=256):
-    """Exact conditional Shapley, holding all non-ME inputs fixed.
+def exact_axis_shapley(model, features, baseline_axes, coalition_batch_size=256):
+    """Exact conditional Shapley, holding all non-functional-axis inputs fixed.
 
-    ``features['me']`` is (samples, axes); baseline is (axes,), (1, axes)
+    ``features['functional_axes']`` is (samples, axes); baseline is (axes,), (1, axes)
     or (samples, axes). Other feature arrays must have the same sample count.
     Enumerates all 2**axes coalitions, with a safety limit of 12 axes.
     """
     _positive_integer(coalition_batch_size, 'coalition_batch_size')
-    me = _finite(features['me'], 'me').astype(np.float32)
-    if me.ndim != 2 or not len(me) or not 1 <= me.shape[1] <= 12:
-        raise ValueError('me must be nonempty (samples, axes), with 1..12 axes')
-    base = np.broadcast_to(_finite(baseline_me, 'baseline_me'), me.shape).astype(np.float32)
+    functional_axes = _finite(features['functional_axes'], 'functional_axes').astype(np.float32)
+    if functional_axes.ndim != 2 or not len(functional_axes) or not 1 <= functional_axes.shape[1] <= 12:
+        raise ValueError('functional_axes must be nonempty (samples, axes), with 1..12 axes')
+    base = np.broadcast_to(_finite(baseline_axes, 'baseline_axes'), functional_axes.shape).astype(np.float32)
     others = {}
     for name, value in features.items():
-        if name == 'me':
+        if name == 'functional_axes':
             continue
         value = _finite(value, name)
-        if value.ndim == 0 or value.shape[0] != len(me):
-            raise ValueError(name + ' must have the same sample count as me')
+        if value.ndim == 0 or value.shape[0] != len(functional_axes):
+            raise ValueError(name + ' must have the same sample count as functional_axes')
         others[name] = value
-    axes = me.shape[1]
+    axes = functional_axes.shape[1]
     ids = np.arange(1 << axes)
     masks = ((ids[:, None] >> np.arange(axes)) & 1).astype(np.float32)
-    phi = np.zeros(me.shape, dtype=np.float64)
-    risks = np.empty((len(me), 2), dtype=np.float64)
-    for i in range(len(me)):
+    phi = np.zeros(functional_axes.shape, dtype=np.float64)
+    risks = np.empty((len(functional_axes), 2), dtype=np.float64)
+    for i in range(len(functional_axes)):
         values = []
         for start in range(0, len(ids), coalition_batch_size):
             mask = masks[start:start + coalition_batch_size]
-            inputs = {'me': tf.convert_to_tensor(base[i] + mask * (me[i] - base[i]))}
+            inputs = {'functional_axes': tf.convert_to_tensor(base[i] + mask * (functional_axes[i] - base[i]))}
             inputs.update({k: tf.convert_to_tensor(np.repeat(v[i:i+1], len(mask), axis=0))
                            for k, v in others.items()})
             output = _finite(model(inputs, training=False), 'model output')
@@ -174,12 +174,12 @@ def allocate_axis_risk(gene_ig, axis_shapley, axis_delta, minimum_denominator=1e
     return allocated, qc
 
 
-def optimize_axis_baseline(model, initial_image, gene_pixel_mask, target_me,
+def optimize_axis_baseline(model, initial_image, gene_pixel_mask, target_axes,
                            steps=500, learning_rate=0.01, regularization=1e-3):
-    """Match a frozen training ME reference, updating only mapped gene pixels.
+    """Match a frozen training functional-axis reference, updating only mapped gene pixels.
 
     Initial image must be (1, ...), normalized to [0, 1]. The target is a
-    single ME vector. Returns (image, optimization_history); matching is not
+    single functional-axis vector. Returns (image, optimization_history); matching is not
     guaranteed. This synthetic baseline must never be fitted using outcomes.
     """
     _positive_integer(steps, 'steps')
@@ -193,12 +193,12 @@ def optimize_axis_baseline(model, initial_image, gene_pixel_mask, target_me,
     mask = np.broadcast_to(_finite(gene_pixel_mask, 'gene_pixel_mask'), initial.shape).astype(np.float32)
     if not np.isin(mask, [0, 1]).all():
         raise ValueError('gene_pixel_mask must be binary')
-    target = _finite(target_me, 'target_me').astype(np.float32)
+    target = _finite(target_axes, 'target_axes').astype(np.float32)
     if target.ndim == 1:
         target = target[None, :]
     prediction = np.asarray(model(tf.convert_to_tensor(initial), training=False))
     if prediction.shape != target.shape or target.ndim != 2 or target.shape[0] != 1:
-        raise ValueError('target_me must match the single-sample model output')
+        raise ValueError('target_axes must match the single-sample model output')
     baseline = tf.Variable(initial)
     optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
     history = []
@@ -211,9 +211,9 @@ def optimize_axis_baseline(model, initial_image, gene_pixel_mask, target_me,
             loss = mse + regularization * deviation
         if step % 50 == 0 or step == steps:
             history.append({'step': step, 'total_loss': float(loss.numpy()),
-                            'me_output_mse': float(mse.numpy()),
+                            'axis_output_mse': float(mse.numpy()),
                             'mean_squared_input_deviation': float(deviation.numpy()),
-                            'maximum_abs_me_error': float(tf.reduce_max(tf.abs(prediction - target)).numpy())})
+                            'maximum_abs_axis_error': float(tf.reduce_max(tf.abs(prediction - target)).numpy())})
         if step < steps:
             gradient = tape.gradient(loss, baseline)
             if gradient is None:

@@ -6,13 +6,13 @@ The core walkthrough runs on synthetic inputs so you can check the software with
 
 ## 1. Install the Package and Prepare Model Resources
 
-This tutorial targets **CancerXpress 1.1.0**, supporting Python 3.8-3.13. Use Python 3.11 or 3.12 for a new environment. The older PyPI `1.0.0` wheel supports Python 3.8 only. See [Installation and Compatibility](installation.md).
+This tutorial targets **CancerXpress 1.2.0**, supporting Python 3.8-3.13. Use Python 3.11 or 3.12 for a new environment. Version 1.1 retains the previous API names and requires updating calls. See [Installation and Compatibility](installation.md).
 
 ```bash
 conda create -n cancerxpress python=3.11 -y
 conda activate cancerxpress
 python -m pip install --upgrade pip
-python -m pip install --only-binary=:all: "cancerxpress==1.1.0"
+python -m pip install --only-binary=:all: "cancerxpress==1.2.0"
 python -m pip check
 ```
 
@@ -92,8 +92,6 @@ Use the following code instead of the synthetic input block when working with re
 ```python
 expr = pd.read_csv("/your/data/expression_tpm.tsv", sep="\t", index_col=0)
 clinical = pd.read_csv("/your/data/clinical.tsv", sep="\t", index_col=0)
-assert set(expr.index).issubset(clinical.index)
-clinical = clinical.loc[expr.index]
 metadata = clinical[["cancer_type"]].copy()
 gene_id_type = "ensembl"  # Use "symbol" for HGNC gene symbols.
 ```
@@ -102,25 +100,28 @@ The first column of the TPM table contains sample IDs; the remaining columns con
 
 Provide the full set of measured genes whenever possible, not just the top 100 genes or selected markers. Successful execution does not establish reliability when many model genes are missing. Do not invent clinical labels to make the workflow run.
 
-<!-- runnable -->
-```python
-assert expr.index.is_unique and expr.columns.is_unique
-assert clinical.index.is_unique
-assert np.isfinite(expr.to_numpy()).all()
-assert (expr.to_numpy() >= 0).all()
-assert set(expr.index).issubset(clinical.index)
-clinical = clinical.loc[expr.index]
-metadata = metadata.loc[expr.index]
-```
+Input checks run inside the package. Duplicate or missing sample/gene IDs,
+nonnumeric, missing, infinite or negative TPM values, and unmatched clinical
+sample IDs raise a descriptive `ValueError`. Clinical rows are automatically
+aligned by sample ID; you do not need to sort them or write validation assertions.
 
 ## 3. Run Batch Correction and Prediction
+
+For ordinary use, prediction needs only the input tables and the model:
+
+```python
+functional_axes = model.predict_functional_axes(expr)
+risk = model.predict_survival_risk(expr, clinical)
+```
+
+The following walkthrough also saves the outputs:
 
 <!-- runnable -->
 ```python
 latent_correction, corrected = model.batch_correct(
     expr, gene_id_type=gene_id_type, batch_size=2,
 )
-me = model.predict_me(expr, gene_id_type=gene_id_type, batch_size=2)
+functional_axes = model.predict_functional_axes(expr, gene_id_type=gene_id_type, batch_size=2)
 risk = model.predict_survival_risk(
     expr, clinical, gene_id_type=gene_id_type, batch_size=2,
 )
@@ -128,10 +129,9 @@ risk = model.predict_survival_risk(
 for name, table in {
     "batch_correction_latent": latent_correction,
     "corrected_expression": corrected,
-    "me_predictions": me,
+    "functional_axis_predictions": functional_axes,
     "survival_risk": risk,
 }.items():
-    assert np.isfinite(table.to_numpy()).all()
     table.to_csv(out / (name + ".tsv"), sep="\t", index_label="sample_id")
     print(name, table.shape)
 ```
@@ -142,8 +142,8 @@ Outputs:
 | --- | --- | --- |
 | `latent_correction` | Samples x 100 | Latent means from the batch-correction generator |
 | `corrected` | Samples x model genes | Reconstructed, corrected expression, not raw measurements |
-| `me` | Samples x 8 | Predicted functional-axis values, not attribution contributions |
-| `risk` | Samples x 1 | `risk_score` from the ME + clinical model |
+| `functional_axes` | Samples x 8 | Predicted functional-axis values, not attribution contributions |
+| `risk` | Samples x 1 | `risk_score` from the functional-axis + clinical model |
 
 The risk score is not a probability between 0 and 1, nor a five-year mortality probability. With the same model and preprocessing, higher scores indicate higher predicted risk. Clinical validity requires evaluation on independent data.
 
@@ -160,7 +160,7 @@ reference_tpm = expr.iloc[[1]]
 attribution = model.attribute_axis_risk(
     expr_tpm=expr.loc[[sample_id]],
     clinical=clinical.loc[[sample_id]],
-    me_name="MEred",
+    axis_name="developmental_regulation",
     reference_tpm=reference_tpm,
     steps=64,
     internal_batch_size=8,
@@ -168,9 +168,9 @@ attribution = model.attribute_axis_risk(
 )
 
 attribution.axis_shapley.to_csv(out / "axis_shapley.tsv", sep="\t")
-attribution.gene_to_axis_ig.to_csv(out / "MEred_gene_ig.tsv", sep="\t")
+attribution.gene_to_axis_ig.to_csv(out / "developmental_regulation_gene_ig.tsv", sep="\t")
 attribution.gene_risk_contribution.to_csv(
-    out / "MEred_gene_risk_contribution.tsv", sep="\t",
+    out / "developmental_regulation_gene_risk_contribution.tsv", sep="\t",
 )
 attribution.diagnostics.to_csv(out / "attribution_diagnostics.tsv", sep="\t")
 print(attribution.diagnostics)
@@ -183,7 +183,7 @@ if not valid:
     )
 scores = attribution.gene_risk_contribution.loc[sample_id]
 top_genes = scores.loc[scores.abs().sort_values(ascending=False).head(10).index]
-top_genes.to_csv(out / "MEred_top10_gene_contributions.tsv", sep="\t")
+top_genes.to_csv(out / "developmental_regulation_top10_gene_contributions.tsv", sep="\t")
 print(top_genes)
 ```
 
@@ -196,7 +196,7 @@ The four main outputs are:
 
 Positive and negative risk contributions indicate an increase or decrease in predicted risk relative to the reference baseline. They do not establish pathway activation or inhibition, or causal effects. A small contribution does not mean a gene is unexpressed. If QC fails, inspect the baseline and consider increasing the integration steps. Near-zero allocation denominators cannot necessarily be fixed by adding steps; do not replace invalid values with zero and interpret them.
 
-For gene contributions to MEred alone or to overall predicted risk, use `attribute_me()` or `attribute_survival_risk()`, respectively. Their attribution targets and baseline definitions differ from the hierarchical allocation above; the outputs should not be treated as interchangeable.
+For gene contributions to the developmental-regulation axis alone or to overall predicted risk, use `attribute_functional_axis()` or `attribute_survival_risk()`, respectively. Their attribution targets and baseline definitions differ from the hierarchical allocation above; the outputs should not be treated as interchangeable.
 
 ## 5. Search for Similar Samples
 
@@ -213,22 +213,20 @@ with tempfile.TemporaryDirectory(prefix="cancerxpress_atlas_", dir=str(out)) as 
     atlas_dir = Path(tmp) / "reference_atlas"
     atlas.save(atlas_dir)
     loaded_atlas = cx.ReferenceAtlas.load(atlas_dir)
-    for space in ("latent", "me"):
+    for space in ("latent", "functional_axes"):
         hits = model.query(
             expr.iloc[[0]], loaded_atlas,
             metadata=metadata.iloc[[0]],
             space=space, k=2, same_cancer=True,
             exclude_self=True, gene_id_type=gene_id_type,
         )
-        assert len(hits) == 2
-        assert sample_id not in hits["reference_sample"].tolist()
         hits.to_csv(out / ("query_" + space + ".tsv"), sep="\t", index=False)
         print(space, hits)
 ```
 
 By default, features are standardized using reference-atlas statistics before cosine similarity is calculated. Results contain reference sample IDs, cancer-type labels, ranks, distances, and similarities. Set `same_cancer=False` to allow cross-cancer searches; `True` requires valid cancer-type labels. Similarity is not a diagnosis and does not imply identical prognosis.
 
-**Keep the latent representations distinct:** `build_reference()`, `query()`, and `encode_features()` use the matching ME model's encoder. Do not mix their latent features with those returned by `batch_correct()`, even though both have 100 dimensions. The query model and reference atlas must have matching model/preprocessing signatures.
+**Keep the latent representations distinct:** `build_reference()`, `query()`, and `encode_features()` use the matching functional-axis model's encoder. Do not mix their latent features with those returned by `batch_correct()`, even though both have 100 dimensions. The query model and reference atlas must have matching model/preprocessing signatures.
 
 ### Optional: Load a Real Atlas and Retrieve Selected Samples
 
@@ -237,7 +235,7 @@ The following code requires separately supplied local reference data. Installing
 ```python
 atlas = cx.ReferenceAtlas.load("/your/data/reference_atlas")
 hits = model.query(
-    expr, atlas, metadata=metadata, space="me",
+    expr, atlas, metadata=metadata, space="functional_axes",
     k=10, same_cancer=False, gene_id_type=gene_id_type,
 )
 
@@ -246,7 +244,7 @@ hits = model.query(
 db = cx.SampleDatabase.from_directory("/your/data/indexed_reference")
 ids = hits["reference_sample"].drop_duplicates().head(2).tolist()
 data = db.fetch(ids, components=[
-    "raw_tpm", "corrected_expression", "latent", "me", "metadata",
+    "raw_tpm", "corrected_expression", "latent", "functional_axes", "metadata",
 ])
 ```
 
@@ -277,7 +275,7 @@ fit.save("/your/work/target_adapter")  # The destination must not already exist.
 print(fit.metrics)
 
 adapter = cx.LatentAdapter.load_adapter("/your/work/target_adapter")
-z_aligned, me_aligned = model.encode_features(
+z_aligned, axes_aligned = model.encode_features(
     target_expr, metadata=target_meta,
     adapter=adapter, gene_id_type="ensembl",
 )
@@ -287,7 +285,7 @@ hits_aligned = model.query(
 )
 ```
 
-The adapter changes only target-sample latent representations; the base encoder and ME head remain frozen. Training combines stratified distribution alignment with constraints that preserve the original structure. `fit.history`, `fit.splits`, and `fit.metrics` contain the training history, patient splits, and diagnostics, respectively, and are included when saving the result.
+The adapter changes only target-sample latent representations; the base encoder and functional-axis head remain frozen. Training combines stratified distribution alignment with constraints that preserve the original structure. `fit.history`, `fit.splits`, and `fit.metrics` contain the training history, patient splits, and diagnostics, respectively, and are included when saving the result.
 
 **Current scope:** An adapter takes effect only when explicitly passed to `encode_features()` or `query()`. It does not automatically modify `predict_survival_risk()` or the attribution interfaces. Do not describe unadapted risk predictions as adapted results. This interface also does not provide pretraining from scratch.
 
@@ -295,7 +293,7 @@ The adapter changes only target-sample latent representations; the base encoder 
 
 The core walkthrough in Sections 1-5 saves prediction, attribution, and query TSV files to your output directory. Check that:
 
-1. Predictions are finite, ME output has eight columns, and sample IDs remain consistent.
+1. Predictions are finite, functional-axis output has eight columns, and sample IDs remain consistent.
 2. Attribution has `allocation_valid=True` and acceptable numerical errors.
 3. Queries exclude the query's own sample ID from the returned neighbors.
 4. For real data, separately assess gene coverage, clinical labels, cross-cohort shifts, and performance against independent outcomes.
@@ -304,7 +302,7 @@ The first three checks establish software and numerical behavior, not biological
 
 ### Validation Scope
 
-The walkthrough was validated on CPU using installed `1.1.0.dev0` wheels on Python 3.12 and 3.13, matching model parameters, and synthetic inputs. It covered all three attribution interfaces, adapter training/save/reload, and queries and retrieval against the local 51,052-sample reference database. Unit tests and fixed-input model comparisons additionally cover Python 3.8-3.13; see [Installation and Compatibility](installation.md) for the exact scope.
+The renamed walkthrough was validated on CPU using an installed `1.2.0` wheel on Python 3.12, unchanged model parameters, and synthetic inputs. It covered all three attribution interfaces, adapter training/save/reload, and queries and retrieval against the unchanged local 51,052-sample reference database. All 59 unit tests passed on Python 3.8-3.13. Fixed-input predictions and attributions on Python 3.12 matched 1.1.0 exactly; see [Installation and Compatibility](installation.md) for the exact scope.
 
 The original PyPI `cancerxpress==1.0.0` / Python 3.8 environment provides the numerical reference. Its `requirements-release-lock.txt` is historical and must not be applied to the new runtime.
 

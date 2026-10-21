@@ -33,7 +33,7 @@ class ResourceTests(unittest.TestCase):
     def test_dynamic_environment_paths(self):
         with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {'CANCERXPRESS_HOME': tmp}):
             self.assertEqual(ResourcePaths().pixel_coords, Path(tmp) / 'assets/tsne_sorted_pixels_coords.csv')
-            self.assertEqual(ModelPaths().me, Path(tmp) / 'models/finetuned/me')
+            self.assertEqual(ModelPaths().functional_axes, Path(tmp) / 'models/finetuned/functional_axes')
             self.assertEqual(resource_paths_from_directory(tmp).max_norm_tpm, Path(tmp) / 'assets/max_norm_tpm.tsv')
 
     def test_install_and_tamper(self):

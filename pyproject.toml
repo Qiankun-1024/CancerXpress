@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cancerxpress"
-version = "1.1.0"
+version = "1.2.0"
 description = "CancerXpress: pretrained RNA expression foundation model for batch correction and cancer downstream prediction"
 readme = "README.md"
 requires-python = ">=3.8,<3.14"

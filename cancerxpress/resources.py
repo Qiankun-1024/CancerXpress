@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import json
 import os
+from ._legacy import axis_checkpoint_directory, risk_metadata
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
@@ -37,7 +38,7 @@ class ResourcePaths:
 @dataclass(frozen=True)
 class ModelPaths:
     batch_correction: Path = field(default_factory=lambda: default_resource_root() / 'models' / 'pretrained' / 'batch_correction')
-    me: Path = field(default_factory=lambda: default_resource_root() / 'models' / 'finetuned' / 'me')
+    functional_axes: Path = field(default_factory=lambda: axis_checkpoint_directory(default_resource_root() / 'models'))
     primary_site: Path = field(default_factory=lambda: default_resource_root() / 'models' / 'finetuned' / 'primary_site')
     cancer_type: Path = field(default_factory=lambda: default_resource_root() / 'models' / 'finetuned' / 'cancer_type')
     survival_risk: Path = field(default_factory=lambda: default_resource_root() / 'models' / 'finetuned' / 'survival_risk')
@@ -45,7 +46,8 @@ class ModelPaths:
     @classmethod
     def from_directory(cls, directory):
         root = Path(directory).expanduser().resolve()
-        return cls(**{name: root / ('pretrained' if name == 'batch_correction' else 'finetuned') / name
+        return cls(**{name: axis_checkpoint_directory(root) if name == 'functional_axes' else
+                      root / ('pretrained' if name == 'batch_correction' else 'finetuned') / name
                       for name in cls.__dataclass_fields__})
 
 
@@ -60,4 +62,4 @@ def resource_paths_from_directory(directory):
 def load_risk_preprocessing(path: Path | None = None) -> dict:
     target = path or ResourcePaths().risk_preprocessing
     with open(target, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        return risk_metadata(json.load(f))

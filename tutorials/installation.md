@@ -1,8 +1,8 @@
 # Installation and Compatibility
 
-## Version 1.1.0
+## CancerXpress 1.2.0
 
-CancerXpress 1.1.0 supports **Python 3.8 through 3.13**. Python 3.11 or
+CancerXpress 1.2.0 supports **Python 3.8 through 3.13**. Python 3.11 or
 3.12 is recommended for new environments. The package selects runtime
 dependencies using Python-version markers:
 
@@ -19,13 +19,24 @@ alone is not a model-compatibility test.
 conda create -n cancerxpress python=3.11 -y
 conda activate cancerxpress
 python -m pip install --upgrade pip
-python -m pip install --only-binary=:all: "cancerxpress==1.1.0"
+python -m pip install --only-binary=:all: "cancerxpress==1.2.0"
 python -m pip check
 ```
 
-Alternatively, download or clone the GitHub project, enter its root directory,
-and run `python -m pip install --only-binary=:all: .`. Use a specific commit
-for reproducibility. Do not install `1.0.0` and expect the newer runtime.
+Alternatively, download or clone the GitHub project, run `cd /path/to/CancerXpress`,
+then `python -m pip install --only-binary=:all: .`. Use a specific commit for
+reproducibility. Version 1.1 supports the same Python versions but retains the
+previous API names; it cannot run the renamed examples unchanged.
+
+## Naming Migration
+
+Use `predict_functional_axes(expr)`, `attribute_functional_axis(expr, axis_name="developmental_regulation")`,
+and `query(expr, atlas, space="functional_axes")`. Result objects and database
+components expose `functional_axes`; output columns use the biological identifiers
+listed in the API guide. Existing resource bundles and reference data can be
+read unchanged. New atlases are saved in format version 2. The old public method
+names are not retained. Version 1.2 therefore requires updating calls written
+for 1.1, even though the model parameters and numerical outputs are unchanged.
 
 The `environment.yml` file provides an alternative conda setup. GPU libraries
 are not pinned to the old CUDA 11.0 stack. CPU is sufficient for the walkthrough;
@@ -75,25 +86,28 @@ the new runtime.
 
 ## Validation
 
-Local Linux CPU checks for `1.1.0.dev0` tested installed wheels outside the
+Local Linux CPU checks for `1.2.0` tested installed wheels outside the
 source checkout, not just imports from source:
 
-| Python | Unit tests | Released-model comparison |
-| --- | --- | --- |
-| 3.8 | 44 passed | Passed |
-| 3.9 | 44 passed | Passed |
-| 3.10 | 44 passed | Passed |
-| 3.11 | 44 passed | Passed |
-| 3.12 | 44 passed | Passed |
-| 3.13 | 44 passed | Passed |
+| Python | Unit tests |
+| --- | --- |
+| 3.8 | 59 passed |
+| 3.9 | 59 passed |
+| 3.10 | 59 passed |
+| 3.11 | 59 passed |
+| 3.12 | 59 passed |
+| 3.13 | 59 passed |
 
-The model comparison uses two fixed synthetic TPM profiles and the original
-1.0.0 / TensorFlow 2.4 environment as its reference. It requires element-wise
-agreement at `rtol=2e-4, atol=2e-5`; this is numerical agreement, not bitwise
-identity. The full quickstart, adapter training/save/reload, reference search,
-and indexed retrieval were additionally checked on Python 3.12 and 3.13 using
-the local 51,052-sample reference database. Only a small number of synthetic
-queries and retrieved samples were used, not an exhaustive database scan.
+On Python 3.12, the migration comparison uses two fixed synthetic TPM profiles
+and the released 1.1.0 runtime as its reference. Predictions and attribution
+arrays had zero differences for those inputs; this is not a claim of exhaustive
+equivalence for all data. The full quickstart, adapter training/save/reload,
+reference search, and indexed retrieval were also checked on Python 3.12 using
+the unchanged local 51,052-sample reference database. Only a small number of
+synthetic queries and retrieved samples were used, not an exhaustive database scan.
+
+Before the naming migration, the 1.1 runtime was additionally compared against
+1.0.0 / TensorFlow 2.4 on Python 3.8-3.13 at `rtol=2e-4, atol=2e-5`.
 
 GPU execution, other operating systems, Python 3.14, and pretraining scripts
 have not been validated by these checks.
@@ -112,8 +126,9 @@ python /path/to/CancerXpress/scripts/check_model_compatibility.py \
   --baseline /your/work/original_runtime/outputs.npz
 ```
 
-Generate the baseline with the same script in the original 1.0 environment,
-omitting `--baseline`. The comparison covers ME, risk, corrected expression,
+Generate the baseline using the comparison script from the reference release's
+source revision in its matching environment, omitting `--baseline`. The current
+script accepts the historical fixture keys. The comparison covers functional-axis values, risk, corrected expression,
 both latent representations, axis Shapley values, and gene attribution.
 It checks numerical compatibility, not clinical predictive performance.
 

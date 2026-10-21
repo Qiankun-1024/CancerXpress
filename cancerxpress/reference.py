@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cdist
+from ._legacy import axis_payload, axis_labels
 
 
 def validate_features(frame, name):
@@ -18,11 +19,11 @@ def validate_features(frame, name):
 class ReferenceAtlas:
     """A frozen feature database, not a collection of fitted patient outcomes."""
 
-    def __init__(self, latent, me, metadata, model_signature):
+    def __init__(self, latent, functional_axes, metadata, model_signature):
         validate_features(latent, 'latent')
-        validate_features(me, 'me')
-        if not latent.index.equals(me.index):
-            raise ValueError('Latent and ME sample order must agree')
+        validate_features(functional_axes, 'functional_axes')
+        if not latent.index.equals(functional_axes.index):
+            raise ValueError('Latent and functional-axis sample order must agree')
         if metadata.index.has_duplicates or not metadata.index.equals(latent.index):
             raise ValueError('Metadata sample order must agree with features')
         if 'cancer_type' not in metadata:
@@ -30,7 +31,7 @@ class ReferenceAtlas:
         if not isinstance(model_signature, str) or not model_signature:
             raise ValueError('A model/preprocessing signature is required')
         self.latent = latent.copy()
-        self.me = me.copy()
+        self.functional_axes = functional_axes.copy()
         self.metadata = metadata.copy()
         self.metadata['cancer_type'] = self.metadata.cancer_type.replace(r'^\s*$', np.nan, regex=True)
         self.model_signature = model_signature
@@ -39,10 +40,10 @@ class ReferenceAtlas:
         root = Path(directory)
         root.mkdir(parents=True, exist_ok=False)
         self.metadata.to_csv(root / 'samples.tsv', sep='\t', index_label='sample_id')
-        np.savez_compressed(root / 'features.npz', latent=self.latent.values, me=self.me.values)
+        np.savez_compressed(root / 'features.npz', latent=self.latent.values, functional_axes=self.functional_axes.values)
         (root / 'atlas.json').write_text(json.dumps({
-            'format_version': 1, 'model_signature': self.model_signature,
-            'latent_columns': list(self.latent.columns), 'me_columns': list(self.me.columns),
+            'format_version': 2, 'model_signature': self.model_signature,
+            'latent_columns': list(self.latent.columns), 'functional_axis_columns': list(self.functional_axes.columns),
             'note': 'Fixed-model features; not OOF risk attributions.'}, indent=2))
 
     @classmethod
@@ -55,19 +56,20 @@ class ReferenceAtlas:
             raise FileNotFoundError('Place the reference atlas files in ' + str(root)
                                     + ' manually. Missing: ' + ', '.join(missing))
         spec = json.loads((root / 'atlas.json').read_text())
-        if spec['format_version'] != 1:
+        if spec['format_version'] not in (1, 2):
             raise ValueError('Unsupported atlas format')
         meta = pd.read_csv(root / 'samples.tsv', sep='\t', index_col=0, dtype={'sample_id': str})
         with np.load(root / 'features.npz', allow_pickle=False) as arrays:
             return cls(pd.DataFrame(arrays['latent'], index=meta.index, columns=spec['latent_columns']),
-                       pd.DataFrame(arrays['me'], index=meta.index, columns=spec['me_columns']),
+                       pd.DataFrame(axis_payload(arrays), index=meta.index,
+                                    columns=axis_labels(axis_payload(spec, 'functional_axis_columns'))),
                        meta, spec['model_signature'])
 
     def query(self, features, space='latent', k=10, metric='cosine',
               standardize=True, query_metadata=None, same_cancer=False,
               exclude_self=True, batch_size=128):
-        if space not in ('latent', 'me'):
-            raise ValueError("space must be 'latent' or 'me'")
+        if space not in ('latent', 'functional_axes'):
+            raise ValueError("space must be 'latent' or 'functional_axes'")
         if metric not in ('cosine', 'euclidean'):
             raise ValueError("metric must be 'cosine' or 'euclidean'")
         if not isinstance(k, int) or k < 1 or not isinstance(batch_size, int) or batch_size < 1:

@@ -24,9 +24,9 @@ plotting functions. Results are intended for research, not clinical diagnosis.
 
 ## Version Notice
 
-These pages describe **CancerXpress 1.1.0**, supporting Python 3.8-3.13.
-The older `1.0.0` release supports Python 3.8 only. See the installation page
-for PyPI and source-install workflows.
+These pages describe **CancerXpress 1.2.0**, supporting Python 3.8-3.13.
+Install from PyPI or the GitHub project. Users upgrading from 1.1 must update
+method and axis names; see the [migration guide](installation.md#naming-migration).
 
 The website displays documentation and examples. It does not run models on
 uploaded patient data or provide an online prediction service.

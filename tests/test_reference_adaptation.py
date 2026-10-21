@@ -10,9 +10,9 @@ def atlas_fixture():
     rng = np.random.RandomState(10)
     index = ['r%d' % i for i in range(20)]
     z = pd.DataFrame(rng.normal(size=(20, 4)), index=index, columns=['z0','z1','z2','z3'])
-    me = pd.DataFrame(rng.normal(size=(20, 2)), index=index, columns=['MEred','MEblue'])
+    functional_axes = pd.DataFrame(rng.normal(size=(20, 2)), index=index, columns=['developmental_regulation','immune_inflammation'])
     meta = pd.DataFrame({'cancer_type':['BRCA']*20, 'subtype':['A']*10+['B']*10},index=index)
-    return ReferenceAtlas(z, me, meta, 'test-signature')
+    return ReferenceAtlas(z, functional_axes, meta, 'test-signature')
 
 
 class ReferenceTests(unittest.TestCase):
@@ -38,8 +38,8 @@ class ReferenceTests(unittest.TestCase):
 
     def test_column_order(self):
         ref=atlas_fixture()
-        a=ref.query(ref.me.iloc[:1],space='me')
-        b=ref.query(ref.me.iloc[:1,::-1],space='me')
+        a=ref.query(ref.functional_axes.iloc[:1],space='functional_axes')
+        b=ref.query(ref.functional_axes.iloc[:1,::-1],space='functional_axes')
         np.testing.assert_allclose(a.distance,b.distance)
 
     def test_missing_reference_labels(self):
@@ -47,7 +47,7 @@ class ReferenceTests(unittest.TestCase):
         meta = ref.metadata.copy()
         meta.loc['r3', 'cancer_type'] = np.nan
         meta.loc['r4', 'cancer_type'] = ' '
-        ref = ReferenceAtlas(ref.latent, ref.me, meta, ref.model_signature)
+        ref = ReferenceAtlas(ref.latent, ref.functional_axes, meta, ref.model_signature)
         with tempfile.TemporaryDirectory() as tmp:
             ref.save(Path(tmp) / 'ref')
             ref = ReferenceAtlas.load(Path(tmp) / 'ref')

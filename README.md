@@ -9,11 +9,11 @@ It is designed for use cases where transcriptomic models need to generalize acro
 - batch effect correction and corrected expression reconstruction
 - latent embedding extraction for downstream analysis
 - pan-cancer representation learning across cohorts and cancer types
-- Module Eigenpathway prediction
+- functional-axis prediction
 - survival risk prediction with external cohort evaluation
 - functional state characterization through low-dimensional transcriptomic axes
 - sample-level attribution through integrated gradients
-- hierarchical gene-to-axis-to-risk attribution with exact ME Shapley,
+- hierarchical gene-to-axis-to-risk attribution with exact functional-axis Shapley,
   matched baselines, and completeness diagnostics
 - automatic gene ID conversion between `Ensembl` IDs and `HGNC symbols`
 - legacy research training scripts under `training/` (outside the package runtime compatibility matrix)
@@ -26,12 +26,16 @@ clinical/biological label. Outputs are for research, not clinical diagnosis.
 
 ## Quick Start
 
+CancerXpress **1.2.0** introduces biological functional-axis names and automatic
+input validation. When upgrading from 1.1, update the old method and axis names
+as described in the [migration guide](tutorials/installation.md#naming-migration).
+
 Choose one of the two [installation methods](#installation):
 
 | Method | Current version | Python |
 | --- | --- | --- |
-| Download the GitHub project and install locally | Current source | 3.8-3.13; 3.11 or 3.12 recommended |
-| Install from PyPI | 1.1.0 | 3.8-3.13; 3.11 or 3.12 recommended |
+| Download the GitHub project and install locally | 1.2.0 | 3.8-3.13; 3.11 or 3.12 recommended |
+| Install from PyPI | 1.2.0 | 3.8-3.13; 3.11 or 3.12 recommended |
 
 Prepare the separate model bundle before inference. Follow the
 [step-by-step tutorial](tutorials/01_quickstart.md) for TPM inputs,
@@ -40,7 +44,7 @@ The tutorial includes a reproducible synthetic-data walkthrough and explains
 how to substitute real data; synthetic results are not biological validation.
 
 The older PyPI `1.0.0` release supports Python 3.8 only. Do not apply its
-historical `requirements-release-lock.txt` constraints to version 1.1.0.
+historical `requirements-release-lock.txt` constraints to versions 1.1 or later.
 
 The examples below use files from the GitHub project. A PyPI installation does
 not include those example files; download the project or use your own TPM and
@@ -79,7 +83,7 @@ clinical = pd.read_csv('examples/scanb_demo_3samples_label.tsv', sep='\t', index
 
 model = cx.CancerXpress()
 latent, corrected = model.batch_correct(expr, gene_id_type='ensembl')
-module_eigenpathway_predictions = model.predict_me(expr, gene_id_type='ensembl')
+functional_axis_predictions = model.predict_functional_axes(expr, gene_id_type='ensembl')
 risk_scores = model.predict_survival_risk(expr, clinical=clinical, gene_id_type='ensembl')
 ```
 
@@ -107,8 +111,8 @@ python examples/risk_attribution_demo.py
 
 - `resources/models/pretrained/batch_correction/`
   Model parameters for batch correction, latent embedding extraction, and corrected expression reconstruction.
-- `resources/models/finetuned/me/`
-  Model parameters for Module Eigenpathway prediction.
+- `resources/models/finetuned/functional_axes/`
+  Model parameters for functional-axis prediction.
 - `resources/models/finetuned/survival_risk/`
   Model parameters for survival risk prediction.
 
@@ -118,7 +122,7 @@ contain unused classification checkpoints, which this API does not load.
 
 ## Installation
 
-Version 1.1.0 supports **Python 3.8-3.13**, with TensorFlow 2.13.x
+The current runtime supports **Python 3.8-3.13**, with TensorFlow 2.13.x
 on Python 3.8 and TensorFlow / tf-keras 2.20.x on Python 3.9-3.13.
 TensorFlow Addons is no longer required. Keras 2 checkpoint compatibility is
 handled internally without changing the process-wide Keras selection.
@@ -150,20 +154,22 @@ moving branch.
 
 ### Option 2: Install from PyPI
 
-Install [CancerXpress 1.1.0 from PyPI](https://pypi.org/project/cancerxpress/1.1.0/)
+Install [CancerXpress 1.2.0 from PyPI](https://pypi.org/project/cancerxpress/1.2.0/)
 in a dedicated Python 3.8-3.13 environment:
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install "cancerxpress==1.1.0"
+python -m pip install "cancerxpress==1.2.0"
 python -m pip check
 ```
+
+Both installation methods provide the functional-axis interfaces shown below.
 
 To upgrade an existing installation, use `python -m pip install --upgrade cancerxpress`.
 Use a fresh environment when migrating from 1.0.0 to avoid retaining obsolete
 TensorFlow GPU / Addons dependencies. The historical `requirements-release-lock.txt` can be used as pip
 constraints to reproduce the tested 1.0.0 dependency versions; do not apply
-that file to version 1.1.0.
+that file to versions 1.1 or later.
 
 **Both methods install code and dependencies only.** Model parameters and
 reference data remain separate and must be installed manually. Prepare the
@@ -183,6 +189,10 @@ create a hosted Read the Docs project.
 The wheel and source distribution contain **code only**, not model weights or
 patient data. The resource bundle includes inference checkpoints, gene mapping,
 normalization assets, label encoders and clinical preprocessing metadata.
+
+Keep existing bundles unchanged. Legacy checkpoint directories, axis labels,
+and reference-database fields are translated internally when read. New API
+outputs use functional-axis terminology; no model retraining is involved.
 
 ```python
 import cancerxpress as cx
@@ -213,6 +223,30 @@ resource and reference-directory layout. No published download URL is assumed.
 
 ## Python API
 
+Functional axes use biological names rather than color IDs. API arguments and
+output columns use the identifiers below, in the frozen model's output order:
+
+| API identifier | English label | 中文名称 |
+| --- | --- | --- |
+| `repair_proteostasis` | Repair–proteostasis | 修复–蛋白稳态 |
+| `immune_inflammation` | Immune inflammation | 免疫炎症 |
+| `hypoxia_myogenesis` | Hypoxia–myogenesis | 缺氧–肌样 |
+| `inflammatory_stress` | Inflammatory stress | 炎症应激 |
+| `stromal_remodeling` | Stromal remodeling | 基质重塑 |
+| `developmental_regulation` | Developmental regulation | 发育调控 |
+| `proliferation` | Proliferation | 细胞增殖 |
+| `metabolism_detoxification` | Metabolism–detoxification | 代谢解毒 |
+
+`cancerxpress.FUNCTIONAL_AXIS_NAMES` provides the identifiers and
+`cancerxpress.FUNCTIONAL_AXIS_LABELS` provides the `en` and `zh` display labels.
+This renames existing outputs without retraining the model or changing their
+order, numerical values, or risk-contribution directions.
+
+The package checks expression values and identifiers internally. Clinical rows
+are aligned to expression sample IDs automatically. Duplicate/missing IDs,
+nonnumeric/nonfinite/negative TPM, and missing clinical samples raise descriptive
+errors; users do not need to write validation assertions before every call.
+
 CancerXpress provides a single high-level entry point for preprocessing, prediction, and attribution:
 
 ```python
@@ -224,14 +258,14 @@ clinical = pd.read_csv('examples/scanb_demo_3samples_label.tsv', sep='\t', index
 
 model = cx.CancerXpress()
 latent, corrected = model.batch_correct(expr, gene_id_type='ensembl')
-module_eigenpathway_predictions = model.predict_me(expr, gene_id_type='ensembl')
+functional_axis_predictions = model.predict_functional_axes(expr, gene_id_type='ensembl')
 risk_scores = model.predict_survival_risk(
     expr,
     clinical=clinical,
     gene_id_type='ensembl',
 )
 
-module_eigenpathway_attribution = model.attribute_me(expr.iloc[[0]], me_name='MEblue', gene_id_type='ensembl')
+functional_axis_attribution = model.attribute_functional_axis(expr.iloc[[0]], axis_name='immune_inflammation', gene_id_type='ensembl')
 survival_risk_attribution = model.attribute_survival_risk(
     expr.iloc[[0]],
     clinical=clinical.iloc[[0]],
@@ -242,9 +276,9 @@ survival_risk_attribution = model.attribute_survival_risk(
 Main API methods:
 
 - `batch_correct(...)`
-- `predict_me(...)`
+- `predict_functional_axes(...)`
 - `predict_survival_risk(...)`
-- `attribute_me(...)`
+- `attribute_functional_axis(...)`
 - `attribute_survival_risk(...)`
 - `attribute_axis_risk(...)`
 
@@ -252,7 +286,7 @@ Attribution covers functional axes and survival risk, not classification.
 
 ## Survival Risk Prediction
 
-The packaged survival risk model is the run1 ME-and-clinical Cox model. CancerXpress first predicts the eight Module Eigenpathway scores from expression and then combines them with the clinical covariates.
+The packaged survival risk model is the run1 functional-axis-and-clinical Cox model. CancerXpress first predicts the eight functional-axis scores from expression and then combines them with the clinical covariates.
 It requires:
 
 - an expression matrix
@@ -348,7 +382,7 @@ Place the files in this layout (or choose any absolute directory):
 ```
 
 Do not unzip or rename the indexed ZIP files. They contain raw TPM, corrected
-expression, latent, ME and sample metadata; these five components need not be
+expression, latent, functional-axis and sample metadata; these five components need not be
 copied again as separate tables. ZIP counts are defined by the release index,
 not hard-coded in the package.
 
@@ -359,7 +393,7 @@ not hard-coded in the package.
 | Retrieve stored sample expression/features | `reference_index.json.gz` and all indexed ZIP shards |
 
 `atlas.json` records the format, feature column names and model/preprocessing
-signature. `features.npz` contains numeric `latent` and `me` arrays in exactly the
+signature. `features.npz` contains numeric `latent` and `functional_axes` arrays in exactly the
 row order of `samples.tsv`. The latter is a sample-indexed TSV with `sample_id`
 and `cancer_type`; additional biological labels are optional. Preserve missing
 reference labels. Do not combine feature files and models from different releases.
@@ -379,13 +413,13 @@ from cancerxpress import SampleDatabase
 db = SampleDatabase.from_directory()
 # Alternatively: db = SampleDatabase.from_directory("/data/cancerxpress/reference")
 ids = db.sample_ids[:2]  # Replace with the desired IDs from this release.
-data = db.fetch(ids, components=["raw_tpm", "me", "metadata"])
-# data["raw_tpm"]: samples x genes; data["me"]: samples x functional axes.
+data = db.fetch(ids, components=["raw_tpm", "functional_axes", "metadata"])
+# data["raw_tpm"]: samples x genes; data["functional_axes"]: samples x functional axes.
 ```
 
-Supported components: `raw_tpm`, `corrected_expression`, `latent`, `me`, `metadata`.
+Supported components: `raw_tpm`, `corrected_expression`, `latent`, `functional_axes`, `metadata`.
 Raw TPM and corrected expression preserve their original, potentially different
-gene columns. Missing metadata labels are not inferred. Latent/ME use the frozen
+gene columns. Missing metadata labels are not inferred. Latent/functional-axis use the frozen
 release model recorded in the index. Opening the directory checks shard presence
 and sizes; reading a component verifies its SHA-256. Local reads do not use the
 network or create duplicate component caches. Only requested components are read.
@@ -394,7 +428,7 @@ controls model resources. Neither default depends on the working directory.
 Automatic data download can be added later without changing the local format.
 The existing explicit-URL transport is optional and is not needed for this workflow.
 
-A reference atlas stores sample-indexed latent means, eight ME values and
+A reference atlas stores sample-indexed latent means, eight functional-axis values and
 biological labels generated with one frozen model. It does not ship inside the
 Python wheel. Use a supplied TCGA atlas or build one from reference TPM:
 
@@ -410,7 +444,7 @@ hits = model.query(
     space="latent", k=10, metric="cosine", same_cancer=True,
     gene_id_type="ensembl",
 )
-# Use space="me" for functional-axis similarity; same_cancer=False for cross-cancer search.
+# Use space="functional_axes" for functional-axis similarity; same_cancer=False for cross-cancer search.
 ```
 
 Expression tables are samples x genes in TPM; metadata is indexed by the same
@@ -424,7 +458,7 @@ default to reference-only z-scored features; cosine similarity is 1-distance.
 Euclidean mode reports distance (similarity is NaN). These are not confidence
 scores or prognostic predictions. Self-exclusion uses exact sample ID.
 
-Fit a shared target-only residual adapter while keeping the encoder/ME head frozen:
+Fit a shared target-only residual adapter while keeping the encoder/functional-axis head frozen:
 
 ```python
 fit = model.adapt(
@@ -436,12 +470,12 @@ fit.save("cohort_adapter")
 print(fit.metrics)  # Before/after held-out MMD and displacement, not clinical validation.
 
 adapter = cx.LatentAdapter.load_adapter("cohort_adapter")
-latent, me = model.encode_features(
+latent, functional_axes = model.encode_features(
     new_tpm, adapter=adapter, metadata=new_metadata, gene_id_type="ensembl"
 )
 hits = model.query(
     new_tpm, atlas, metadata=new_metadata, adapter=adapter,
-    space="me", same_cancer=True, gene_id_type="ensembl"
+    space="functional_axes", same_cancer=True, gene_id_type="ensembl"
 )
 ```
 
@@ -464,7 +498,7 @@ record evaluated counts. Inspect saved split tables and biological preservation;
 smaller MMD is not proof of biological recovery. Adapter use is explicit and
 does not change the reference atlas or ordinary prediction/attribution calls.
 Current adapter support covers `encode_features` and `query`; risk/IG APIs do
-not automatically apply it. Do not mix adapted ME with old gene attribution.
+not automatically apply it. Do not mix adapted functional-axis with old gene attribution.
 Training/validation patients are not untouched external validation.
 
 Historical TCGA OOF attribution tables and fixed-release-model query features
@@ -502,7 +536,7 @@ For attribution output:
 ### Axis-Specific Risk Attribution
 
 Pass the patient's TPM, clinical information, and reference TPM samples.
-The package handles internal image conversion and computes exact ME Shapley,
+The package handles internal image conversion and computes exact functional-axis Shapley,
 gene-to-axis IG, and the selected axis's gene-level risk allocation.
 
 ```python
@@ -515,7 +549,7 @@ reference = pd.read_csv('training_reference_tpm.tsv', sep='\t', index_col=0)
 
 result = cx.CancerXpress().attribute_axis_risk(
     expr.iloc[[0]], clinical.loc[expr.index[:1]],
-    me_name='MEred', reference_tpm=reference, gene_id_type='ensembl',
+    axis_name='developmental_regulation', reference_tpm=reference, gene_id_type='ensembl',
 )
 result.axis_shapley.to_csv('axis_shapley.tsv', sep='\t')
 result.gene_risk_contribution.to_csv('gene_axis_risk.tsv', sep='\t')
@@ -527,10 +561,10 @@ print(result.diagnostics)
   patient itself or an external cohort recentered separately. Reference patients
   do not need clinical information; the target patient's clinical inputs stay fixed.
 - Internally, reference samples are individually preprocessed and their model-input
-  images averaged. The model prediction of this average supplies the ME baseline.
-  No image or ME-reference file is required from the user. This baseline is NOT
-  the mean of individual ME predictions and may differ from earlier research
-  results using an optimized training-mean-ME baseline.
+  images averaged. The model prediction of this average supplies the functional-axis baseline.
+  No image or functional-axis-reference file is required from the user. This baseline is NOT
+  the mean of individual functional-axis predictions and may differ from earlier research
+  results using an optimized training-mean-functional-axis baseline.
 - Outputs: `axis_shapley` (eight axes), `gene_to_axis_ig`,
   `gene_risk_contribution`, and `diagnostics` (completeness errors and validity).
   Allocation is `axis_shapley * gene_IG / sum(gene_IG)`, over all mapped genes.
@@ -558,7 +592,7 @@ Expected outputs:
 
 - `latent.tsv`
 - `corrected_expression.tsv`
-- `me_predictions.tsv`
+- `functional_axis_predictions.tsv`
 - `survival_risk.tsv`
 
 ### Run Attribution from CLI
@@ -568,8 +602,8 @@ cancerxpress \
   --input examples/scanb_demo_3samples.tsv \
   --outdir output/attr_demo \
   --task attribution \
-  --attribution-task me \
-  --target-name MEblue \
+  --attribution-task functional_axis \
+  --target-name immune_inflammation \
   --sample-id TCGA-A2-A0T2-01A \
   --gene-id-type ensembl
 ```
@@ -599,16 +633,16 @@ They are not installed by the wheel or source distribution and are not a
 unified, supported pretraining API. The supported package adaptation entry point
 is `model.adapt(...)`, described above. Repository-only scripts include:
 
-- `training/ME_regression.py`: regression training for eight Module Eigenpathway targets
+- `training/ME_regression.py`: regression training for eight functional-axis targets
 - `training/improved_risk_prediction.py`: survival risk model training
 
-### Example: Module Eigenpathway Training
+### Example: functional-axis Training
 
 ```bash
 python training/ME_regression.py \
   --data /path/to/expression_matrix.tsv \
-  --label /path/to/me_targets.tsv \
-  --ckpt-dir training_checkpoints/me_regressor
+  --label /path/to/functional_axis_targets.tsv \
+  --ckpt-dir training_checkpoints/functional_axis_regressor
 ```
 
 ### Example: Survival Risk Training

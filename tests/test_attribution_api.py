@@ -14,7 +14,7 @@ class AttributionAPITests(unittest.TestCase):
         for cls in (CancerXpress, CancerXpressAttributor):
             for name in ('attribute_primary_site', 'attribute_cancer_type'):
                 self.assertFalse(hasattr(cls, name))
-            for name in ('attribute_me', 'attribute_survival_risk', 'attribute_axis_risk'):
+            for name in ('attribute_functional_axis', 'attribute_survival_risk', 'attribute_axis_risk'):
                 self.assertTrue(callable(getattr(cls, name)))
         for name in ('predict_primary_site', 'predict_cancer_type'):
             self.assertFalse(hasattr(CancerXpress, name))
@@ -25,12 +25,12 @@ class AttributionAPITests(unittest.TestCase):
     def test_run_all_only_supported_predictions(self):
         model = CancerXpress.__new__(CancerXpress)
         with patch.object(model, 'batch_correct', return_value=('latent', 'expression')), \
-                patch.object(model, 'predict_me', return_value='me'), \
+                patch.object(model, 'predict_functional_axes', return_value='functional_axes'), \
                 patch.object(model, 'predict_survival_risk', return_value='risk'):
             result = model.run_all(None, None)
         self.assertEqual(result.latent, 'latent')
         self.assertEqual(result.corrected_expression, 'expression')
-        self.assertEqual(result.me, 'me')
+        self.assertEqual(result.functional_axes, 'functional_axes')
         self.assertEqual(result.survival_risk, 'risk')
 
     def test_cli_rejects_classification_prediction(self):

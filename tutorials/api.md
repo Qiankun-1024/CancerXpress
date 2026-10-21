@@ -11,13 +11,37 @@ model = cx.CancerXpress(resource_dir="/your/data/cancerxpress/models_v1")
 All expression inputs below are samples-by-genes TPM DataFrames with unique
 sample IDs. Use `gene_id_type="ensembl"` or `"symbol"` as appropriate.
 
+Input validation is automatic: invalid TPM values, duplicate/missing labels,
+or unmatched clinical sample IDs raise `ValueError`. Clinical rows are reordered
+by sample ID internally. Function names below belong to the 1.2 API;
+users of 1.1 must follow the [migration guide](installation.md#naming-migration).
+
+## Functional-Axis Names
+
+Use the biological identifier in `axis_name` and to select output columns:
+
+| Identifier | Display name |
+| --- | --- |
+| `repair_proteostasis` | Repair–proteostasis |
+| `immune_inflammation` | Immune inflammation |
+| `hypoxia_myogenesis` | Hypoxia–myogenesis |
+| `inflammatory_stress` | Inflammatory stress |
+| `stromal_remodeling` | Stromal remodeling |
+| `developmental_regulation` | Developmental regulation |
+| `proliferation` | Proliferation |
+| `metabolism_detoxification` | Metabolism–detoxification |
+
+The order is unchanged from the frozen model. Access display labels with
+`cx.FUNCTIONAL_AXIS_LABELS["developmental_regulation"]["en"]` or `["zh"]`.
+These labels describe existing functional axes, not newly trained outputs.
+
 ## Prediction and Batch Correction
 
 | Method | Additional inputs | Output |
 | --- | --- | --- |
 | `harmonize_expression(expr)` | Gene ID type | Matrix aligned to model genes |
 | `batch_correct(expr)` | Optional batch size | Latent means and corrected expression |
-| `predict_me(expr)` | Optional batch size | Eight functional-axis scores |
+| `predict_functional_axes(expr)` | Optional batch size | Eight functional-axis scores |
 | `predict_survival_risk(expr, clinical)` | Age, sex, race, stage, cancer type | Model risk score |
 | `run_all(expr, clinical)` | Same clinical table | Result object containing all four output tables |
 
@@ -28,9 +52,9 @@ is an observed input label, not a classification output.
 
 | Method | Question |
 | --- | --- |
-| `attribute_me(expr, me_name)` | Which genes contribute to this functional-axis prediction? |
+| `attribute_functional_axis(expr, axis_name)` | Which genes contribute to this functional-axis prediction? |
 | `attribute_survival_risk(expr, clinical)` | Which genes contribute to overall predicted risk? |
-| `attribute_axis_risk(expr, clinical, me_name, reference_tpm)` | How is one axis's risk contribution allocated to genes? |
+| `attribute_axis_risk(expr, clinical, axis_name, reference_tpm)` | How is one axis's risk contribution allocated to genes? |
 
 These interfaces currently take one query sample at a time. Hierarchical
 attribution requires reference TPM and returns `axis_shapley`,
@@ -40,13 +64,13 @@ inhibition, and attribution does not establish causality.
 
 ## Reference Search
 
-- `encode_features(expr)` returns ME-model encoder features and ME scores.
+- `encode_features(expr)` returns functional-axis-model encoder features and functional-axis scores.
 - `build_reference(expr, metadata)` constructs a `ReferenceAtlas`.
 - `query(expr, reference, space="latent")` retrieves similar reference samples.
-- Set `space="me"` to query functional-axis space instead.
+- Set `space="functional_axes"` to query functional-axis space instead.
 - Set `same_cancer=True` only when valid matching cancer-type labels are supplied.
 
-The ME-model encoder and the batch-correction generator have distinct latent
+The functional-axis-model encoder and the batch-correction generator have distinct latent
 representations. Do not combine them just because their dimensions agree.
 
 `ReferenceAtlas.save()` / `.load()` persist the small feature atlas.

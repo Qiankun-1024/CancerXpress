@@ -24,13 +24,13 @@ encoders/
 gene_annotation/
 mappings/survival_risk_preprocessing.json
 models/pretrained/batch_correction/
-models/finetuned/me/
+models/finetuned/functional_axes/
 models/finetuned/primary_site/
 models/finetuned/cancer_type/
 models/finetuned/survival_risk/
 ```
 
-The survival model consumes predicted ME scores and clinical covariates:
+The survival model consumes predicted functional-axis scores and clinical covariates:
 age, sex, race, tumor stage and cancer type. Model order and preprocessing
 parameters are frozen in the bundle.
 

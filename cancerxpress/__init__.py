@@ -1,4 +1,5 @@
 from .pipeline import CancerXpress, CancerXpressResult
+from .axes import FUNCTIONAL_AXIS_NAMES, FUNCTIONAL_AXIS_LABELS
 from .reference import ReferenceAtlas
 from .sample_database import SampleDatabase, RangeNotSupportedError
 from .adaptation import LatentAdapter, AdaptationResult, fit_latent_adapter
@@ -15,6 +16,8 @@ from .risk_attribution import (
 )
 
 __all__ = [
+    'FUNCTIONAL_AXIS_NAMES',
+    'FUNCTIONAL_AXIS_LABELS',
     'SampleDatabase', 'RangeNotSupportedError',
     'ReferenceAtlas', 'LatentAdapter', 'AdaptationResult', 'fit_latent_adapter',
     'download_models',

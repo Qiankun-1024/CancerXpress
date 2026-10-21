@@ -20,8 +20,8 @@ class SampleDatabaseTests(unittest.TestCase):
   (source/'raw_tpm.tsv').write_text('\tg1\tg2\nA\t1.00\t2e-3\nB\t3\t4\nC\t5\t6\n')
   (source/'corrected_expression.tsv').write_text('\tg2\tg3\tg1\nA\t.1\t.2\t.3\nB\t.4\t.5\t.6\nC\t.7\t.8\t.9\n')
   (atlas/'samples.tsv').write_text('sample_id\tcancer_type\nA\tBRCA\nB\t\nC\tNormal\n')
-  (atlas/'atlas.json').write_text(json.dumps({'model_signature':'test','latent_columns':['z1','z2'],'me_columns':['MEred']}))
-  np.savez(atlas/'features.npz',latent=np.arange(6).reshape(3,2),me=np.arange(3).reshape(3,1))
+  (atlas/'atlas.json').write_text(json.dumps({'model_signature':'test','latent_columns':['z1','z2'],'functional_axis_columns':['developmental_regulation']}))
+  np.savez(atlas/'features.npz',latent=np.arange(6).reshape(3,2),functional_axes=np.arange(3).reshape(3,1))
   self.out=self.root/'packed';package(source,atlas,self.out,2)
  def tearDown(self):self.tmp.cleanup()
  def db(self,remote=False):
@@ -29,7 +29,7 @@ class SampleDatabaseTests(unittest.TestCase):
  def response(self,url,status,body,headers=None):
   r=requests.Response();r.status_code=status;r.url=url;r.headers.update(headers or {});r.raw=io.BytesIO(body);return r
  def test_local_components(self):
-  db=self.db();data=db.fetch(['B','A'],components=['raw_tpm','corrected_expression','metadata','latent','me'])
+  db=self.db();data=db.fetch(['B','A'],components=['raw_tpm','corrected_expression','metadata','latent','functional_axes'])
   self.assertEqual(list(data['raw_tpm'].index),['B','A'])
   np.testing.assert_allclose(data['raw_tpm'].loc['A'],[1,.002])
   self.assertEqual(list(data['corrected_expression'].columns),['g2','g3','g1'])
@@ -75,11 +75,11 @@ class SampleDatabaseTests(unittest.TestCase):
    content=(self.out/url.rsplit('/',1)[1]).read_bytes()
    return self.response(url,206,content[start:end+1],{'Content-Range':'bytes %d-%d/%d'%(start,end,len(content))})
   db.session.get=Mock(side_effect=get)
-  x=db.fetch(['A'],components=['me','latent'])
+  x=db.fetch(['A'],components=['functional_axes','latent'])
   self.assertEqual(db.session.get.call_count,1)
-  db.fetch(['A'],components=['me'])
+  db.fetch(['A'],components=['functional_axes'])
   self.assertEqual(db.session.get.call_count,1)
-  self.assertEqual(x['me'].iloc[0,0],0)
+  self.assertEqual(x['functional_axes'].iloc[0,0],0)
  def test_ignored_range_requires_opt_in(self):
   db=self.db(True)
   db.session.get=Mock(side_effect=lambda url,**kw:self.response(url,200,b''))
@@ -89,12 +89,12 @@ class SampleDatabaseTests(unittest.TestCase):
   db=self.db(True)
   db.session.get=Mock(side_effect=lambda url,**kw:self.response(url,200,(self.out/url.rsplit('/',1)[1]).read_bytes()))
   with self.assertWarns(RuntimeWarning):
-   x=db.fetch(['A'],components=['me'],allow_full_shard=True)
-  self.assertEqual(x['me'].iloc[0,0],0)
+   x=db.fetch(['A'],components=['functional_axes'],allow_full_shard=True)
+  self.assertEqual(x['functional_axes'].iloc[0,0],0)
   self.assertEqual(db.session.get.call_count,2)
  def test_bad_range_rejected(self):
   db=self.db(True)
   db.session.get=Mock(side_effect=lambda url,**kw:self.response(url,206,b'bad',{'Content-Range':'bytes 0-2/3'}))
-  with self.assertRaises(ValueError):db.fetch(['A'],components=['me'])
+  with self.assertRaises(ValueError):db.fetch(['A'],components=['functional_axes'])
 
 if __name__=='__main__':unittest.main()
