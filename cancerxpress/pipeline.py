@@ -2,19 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Optional
 
-import joblib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from ._keras import keras
 
 from .models.rnaimage_model import Bio_Generator
-from .models.task_model import FCN, make_finetune_model
 from .attribution import AttributionResult, CancerXpressAttributor
 from .predictor import Predictor
-from .preprocess import ExpressionPreprocessor
-from .resources import ModelPaths, ResourcePaths
+from .preprocess import ExpressionPreprocessor, PreprocessAssets
+from .resources import ModelPaths, ResourcePaths, resource_paths_from_directory
 
 
 ME_COLUMNS = [
@@ -28,8 +27,6 @@ class CancerXpressResult:
     latent: Optional[pd.DataFrame] = None
     corrected_expression: Optional[pd.DataFrame] = None
     me: Optional[pd.DataFrame] = None
-    primary_site: Optional[pd.DataFrame] = None
-    cancer_type: Optional[pd.DataFrame] = None
     survival_risk: Optional[pd.DataFrame] = None
 
 
@@ -38,10 +35,18 @@ class CancerXpress:
         self,
         model_paths: ModelPaths | None = None,
         resource_paths: ResourcePaths | None = None,
+        model_dir=None, resource_dir=None,
     ):
-        self.model_paths = model_paths or ModelPaths()
-        self.resource_paths = resource_paths or ResourcePaths()
-        self.preprocessor = ExpressionPreprocessor()
+        if model_paths is not None and model_dir is not None:
+            raise ValueError('Use model_paths or model_dir, not both')
+        if resource_paths is not None and resource_dir is not None:
+            raise ValueError('Use resource_paths or resource_dir, not both')
+        self.model_paths = model_paths or (ModelPaths.from_directory(model_dir) if model_dir else
+                                          ModelPaths.from_directory(Path(resource_dir) / 'models') if resource_dir else ModelPaths())
+        self.resource_paths = resource_paths or (resource_paths_from_directory(resource_dir) if resource_dir else ResourcePaths())
+        self.preprocessor = ExpressionPreprocessor(PreprocessAssets(
+            self.resource_paths.pixel_coords, self.resource_paths.max_norm_tpm,
+            self.resource_paths.gene_id_map))
         self.attributor = CancerXpressAttributor(self.model_paths, self.resource_paths)
 
     @staticmethod
@@ -57,15 +62,8 @@ class CancerXpress:
         ckpt.restore(self._latest_checkpoint(self.model_paths.batch_correction)).expect_partial()
         return model
 
-    def _load_classifier(self, out_dim: int, activation: Optional[str], finetune_dir: Path) -> FCN:
-        model = make_finetune_model(out_dim, activation=activation, trainable_layer='none', pretrain='v2')
-        latest = self._latest_checkpoint(finetune_dir)
-        checkpoint = tf.train.Checkpoint(classifier=model)
-        checkpoint.restore(latest).expect_partial()
-        return model
-
     @staticmethod
-    def _batch_predict(model: tf.keras.Model, x: np.ndarray, batch_size: int = 256) -> np.ndarray:
+    def _batch_predict(model: keras.Model, x: np.ndarray, batch_size: int = 256) -> np.ndarray:
         ds = tf.data.Dataset.from_tensor_slices(x).batch(batch_size)
         out = []
         for batch in ds:
@@ -91,6 +89,8 @@ class CancerXpress:
         latent_list, observed_list = [], []
         for batch in ds:
             latent = generator.encode(batch, reparameterize=stochastic)
+            if not stochastic:
+                latent = latent[0]
             observed = generator.decode(latent, apply_sigmoid=True)
             latent_list.append(latent.numpy())
             observed_list.append(observed.numpy())
@@ -105,18 +105,8 @@ class CancerXpress:
 
     def predict_me(self, expr_tpm: pd.DataFrame, batch_size: int = 256, gene_id_type: str = 'auto') -> pd.DataFrame:
         expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
-        predictor = Predictor(expr)
+        predictor = Predictor(expr, model_paths=self.model_paths, resource_paths=self.resource_paths)
         return predictor.predict_pathway_axis(batch_size=batch_size, return_type='score')
-
-    def predict_primary_site(self, expr_tpm: pd.DataFrame, batch_size: int = 256, gene_id_type: str = 'auto', return_type: str = 'label') -> pd.DataFrame:
-        expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
-        predictor = Predictor(expr)
-        return predictor.predict(label_types='primary_site', batch_size=batch_size, return_type=return_type)
-
-    def predict_cancer_type(self, expr_tpm: pd.DataFrame, batch_size: int = 256, gene_id_type: str = 'auto', return_type: str = 'label') -> pd.DataFrame:
-        expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
-        predictor = Predictor(expr)
-        return predictor.predict(label_types='cancer_type', batch_size=batch_size, return_type=return_type)
 
     def predict_survival_risk(
         self,
@@ -126,7 +116,7 @@ class CancerXpress:
         gene_id_type: str = 'auto',
     ) -> pd.DataFrame:
         expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
-        predictor = Predictor(expr)
+        predictor = Predictor(expr, model_paths=self.model_paths, resource_paths=self.resource_paths)
         return predictor.predict_survival_risk(
             clinical=clinical,
             batch_size=batch_size,
@@ -136,26 +126,6 @@ class CancerXpress:
     def attribute_me(self, expr_tpm: pd.DataFrame, me_name: str, steps: int = 50, gene_id_type: str = 'auto') -> AttributionResult:
         expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
         return self.attributor.attribute_me(expr, me_name=me_name, steps=steps)
-
-    def attribute_primary_site(
-        self,
-        expr_tpm: pd.DataFrame,
-        target_name: Optional[str] = None,
-        steps: int = 50,
-        gene_id_type: str = 'auto',
-    ) -> AttributionResult:
-        expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
-        return self.attributor.attribute_primary_site(expr, target_name=target_name, steps=steps)
-
-    def attribute_cancer_type(
-        self,
-        expr_tpm: pd.DataFrame,
-        target_name: Optional[str] = None,
-        steps: int = 50,
-        gene_id_type: str = 'auto',
-    ) -> AttributionResult:
-        expr = self.harmonize_expression(expr_tpm, gene_id_type=gene_id_type)
-        return self.attributor.attribute_cancer_type(expr, target_name=target_name, steps=steps)
 
     def attribute_survival_risk(
         self,
@@ -183,6 +153,96 @@ class CancerXpress:
             expr, clinical, me_name, reference, steps,
             internal_batch_size, maximum_relative_error)
 
+    def _feature_signature(self):
+        """Hash the actual ME/encoder checkpoints and preprocessing, not filenames."""
+        import hashlib
+        from .downloads import sha256_file
+        paths = []
+        for directory in (self.model_paths.batch_correction, self.model_paths.me):
+            checkpoint = Path(self._latest_checkpoint(directory))
+            paths.extend([Path(str(checkpoint) + '.index')])
+            paths.extend(sorted(checkpoint.parent.glob(checkpoint.name + '.data-*')))
+        paths.extend([self.resource_paths.pixel_coords, self.resource_paths.max_norm_tpm,
+                      self.resource_paths.gene_id_map])
+        state = tuple((str(p), p.stat().st_size, p.stat().st_mtime_ns) for p in paths)
+        if getattr(self, '_signature_state', None) != state:
+            self._signature_value = hashlib.sha256(
+                ''.join(sha256_file(p) for p in paths).encode()).hexdigest()
+            self._signature_state = state
+        return self._signature_value
+
+    def _reference_me_model(self):
+        from .utils.model_loader import load_predict_model
+        signature = self._feature_signature()
+        if getattr(self, '_reference_model_signature', None) != signature:
+            self._reference_model = load_predict_model(
+                'latest', str(self.model_paths.me), 8, None,
+                encoder_ckpt_path=str(self.model_paths.batch_correction))
+            self._reference_model_signature = signature
+        return self._reference_model
+
+    def encode_features(self, expr_tpm, batch_size=32, gene_id_type='auto',
+                        adapter=None, metadata=None):
+        """Frozen ME-encoder latent mean and ME features; optional target adapter."""
+        from .reference import validate_features
+        validate_features(expr_tpm, 'expression')
+        if (expr_tpm.to_numpy() < 0).any():
+            raise ValueError('Expression must be nonnegative TPM')
+        if not isinstance(batch_size, int) or batch_size < 1:
+            raise ValueError('batch_size must be positive')
+        model = self._reference_me_model()
+        if adapter is not None:
+            if adapter.model_signature != self._feature_signature():
+                raise ValueError('Adapter was fitted with a different model/preprocessing')
+            if metadata is None:
+                raise ValueError('Metadata is required when applying an adapter')
+            adapter.validate_metadata(metadata, expr_tpm.index)
+        latent, axes = [], []
+        for start in range(0, len(expr_tpm), batch_size):
+            images = self.preprocessor.gene2img(expr_tpm.iloc[start:start+batch_size], gene_id_type=gene_id_type)
+            z, _ = tf.split(model.encoder(images, training=False), 2, axis=1)
+            if adapter is not None:
+                z = adapter(z, training=False)
+            me = model.out_layer(model.fc_layer(z, training=False), training=False)
+            latent.append(z.numpy())
+            axes.append(me.numpy())
+        z, me = np.concatenate(latent), np.concatenate(axes)
+        return (pd.DataFrame(z, index=expr_tpm.index, columns=['latent_%d' % i for i in range(z.shape[1])]),
+                pd.DataFrame(me, index=expr_tpm.index, columns=ME_COLUMNS))
+
+    def build_reference(self, expr_tpm, metadata, batch_size=32, gene_id_type='auto'):
+        """Create a reference atlas from TPM and sample-indexed biological labels."""
+        from .reference import ReferenceAtlas
+        z, me = self.encode_features(expr_tpm, batch_size, gene_id_type)
+        if metadata.index.has_duplicates:
+            raise ValueError('Duplicate metadata IDs')
+        return ReferenceAtlas(z, me, metadata.reindex(expr_tpm.index), self._feature_signature())
+
+    def adapt(self, expr_tpm, metadata, reference, biological_labels=None,
+              batch_size=32, gene_id_type='auto', **fit_options):
+        """Fit a target-only residual adapter, stratified by cancer and optional labels."""
+        from .reference import ReferenceAtlas
+        from .adaptation import fit_latent_adapter
+        atlas = ReferenceAtlas.load(reference) if isinstance(reference, (str, Path)) else reference
+        if atlas.model_signature != self._feature_signature():
+            raise ValueError('Reference atlas was built with different model/preprocessing')
+        z, _ = self.encode_features(expr_tpm, batch_size, gene_id_type)
+        return fit_latent_adapter(z, metadata, atlas, biological_labels, **fit_options)
+
+    def query(self, expr_tpm, reference, metadata=None, space='latent', k=10,
+              metric='cosine', standardize=True, same_cancer=False, exclude_self=True,
+              adapter=None, batch_size=32, gene_id_type='auto'):
+        """Return nearest database samples, not classifications or clinical matches."""
+        from .reference import ReferenceAtlas
+        atlas = ReferenceAtlas.load(reference) if isinstance(reference, (str, Path)) else reference
+        if atlas.model_signature != self._feature_signature():
+            raise ValueError('Reference atlas was built with different model/preprocessing')
+        z, me = self.encode_features(expr_tpm, batch_size, gene_id_type, adapter, metadata)
+        if space not in ('latent', 'me'):
+            raise ValueError("space must be 'latent' or 'me'")
+        return atlas.query(z if space == 'latent' else me, space, k, metric,
+                           standardize, metadata, same_cancer, exclude_self)
+
     def run_all(
         self,
         expr_tpm: pd.DataFrame,
@@ -192,14 +252,10 @@ class CancerXpress:
     ) -> CancerXpressResult:
         latent, corrected = self.batch_correct(expr_tpm, batch_size=batch_size, gene_id_type=gene_id_type)
         me = self.predict_me(expr_tpm, batch_size=batch_size, gene_id_type=gene_id_type)
-        primary = self.predict_primary_site(expr_tpm, batch_size=batch_size, gene_id_type=gene_id_type)
-        cancer = self.predict_cancer_type(expr_tpm, batch_size=batch_size, gene_id_type=gene_id_type)
         risk = self.predict_survival_risk(expr_tpm, clinical=clinical, batch_size=batch_size, gene_id_type=gene_id_type)
         return CancerXpressResult(
             latent=latent,
             corrected_expression=corrected,
             me=me,
-            primary_site=primary,
-            cancer_type=cancer,
             survival_risk=risk,
         )

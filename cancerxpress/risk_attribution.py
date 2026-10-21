@@ -9,6 +9,7 @@ import math
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from ._keras import keras
 
 
 @dataclass
@@ -199,7 +200,7 @@ def optimize_axis_baseline(model, initial_image, gene_pixel_mask, target_me,
     if prediction.shape != target.shape or target.ndim != 2 or target.shape[0] != 1:
         raise ValueError('target_me must match the single-sample model output')
     baseline = tf.Variable(initial)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
+    optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
     history = []
     for step in range(steps + 1):
         with tf.GradientTape(watch_accessed_variables=False) as tape:

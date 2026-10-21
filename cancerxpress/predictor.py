@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import List, Optional, Union
 
-import joblib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+from .preprocess import ExpressionPreprocessor, PreprocessAssets
 from .models import task_model
 from .models.survival_model import ClinicalMERiskModel
 from .resources import ModelPaths, ResourcePaths, load_risk_preprocessing
@@ -14,11 +14,15 @@ from .utils import data_normalizer, model_loader
 
 
 class Predictor:
-    def __init__(self, data: pd.DataFrame, dtype='TPM'):
+    def __init__(self, data: pd.DataFrame, dtype='TPM', model_paths=None, resource_paths=None):
         self.sample_id = data.index
-        self.data = data_normalizer.gene2img(data, dtype=dtype)
-        self.model_paths = ModelPaths()
-        self.resource_paths = ResourcePaths()
+        self.model_paths = model_paths or ModelPaths()
+        self.resource_paths = resource_paths or ResourcePaths()
+        rp = self.resource_paths
+        processor = ExpressionPreprocessor(PreprocessAssets(rp.pixel_coords, rp.max_norm_tpm, rp.gene_id_map))
+        if dtype != 'TPM':
+            raise ValueError('Predictor expects TPM input')
+        self.data = processor.gene2img(data, gene_id_type='ensembl')
 
     @staticmethod
     def _normalize_cancer_type(cancer_type: Union[pd.Series, np.ndarray, List[str]], sample_id: pd.Index) -> pd.Series:
@@ -145,55 +149,8 @@ class Predictor:
             out.append(model(batch, training=False).numpy())
         return np.concatenate(out, axis=0)
 
-    def predict(self, label_types: Union[str, List[str]], batch_size=256, return_type='label'):
-        pred_labels = pd.DataFrame(index=self.sample_id)
-        if not isinstance(label_types, list):
-            label_types = [label_types]
-        task_config = {
-            'primary_site': {
-                'ckpt_path': str(self.model_paths.primary_site),
-                'out_dim': 35,
-                'activation': 'softmax',
-                'encoder_path': str(self.resource_paths.primary_site_encoder),
-                'output_name': 'primary_site',
-            },
-            'primary_site_v2': {
-                'ckpt_path': str(self.model_paths.primary_site),
-                'out_dim': 35,
-                'activation': 'softmax',
-                'encoder_path': str(self.resource_paths.primary_site_encoder),
-                'output_name': 'primary_site',
-            },
-            'cancer_type': {
-                'ckpt_path': str(self.model_paths.cancer_type),
-                'out_dim': 41,
-                'activation': 'softmax',
-                'encoder_path': str(self.resource_paths.cancer_type_encoder),
-                'output_name': 'cancer_type',
-            },
-            'cancer_type_v2': {
-                'ckpt_path': str(self.model_paths.cancer_type),
-                'out_dim': 41,
-                'activation': 'softmax',
-                'encoder_path': str(self.resource_paths.cancer_type_encoder),
-                'output_name': 'cancer_type',
-            },
-        }
-        for lt in label_types:
-            cfg = task_config[lt]
-            model = model_loader.load_predict_model('latest', cfg['ckpt_path'], cfg['out_dim'], cfg['activation'])
-            preds = self._batch_predict(model, self.data, batch_size)
-            encoder = joblib.load(cfg['encoder_path'])
-            if return_type == 'label':
-                preds = pd.DataFrame(encoder.inverse_transform(preds), columns=[cfg['output_name']], index=self.sample_id)
-            else:
-                class_names = encoder.categories_[0]
-                preds = pd.DataFrame(np.asarray(preds), columns=class_names, index=self.sample_id)
-            pred_labels = pd.concat([pred_labels, preds], axis=1)
-        return pred_labels
-
     def predict_pathway_axis(self, batch_size=256, return_type='score'):
-        model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None)
+        model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None, encoder_ckpt_path=str(self.model_paths.batch_correction))
         preds = self._batch_predict(model, self.data, batch_size)
         class_names = ['MEblack', 'MEblue', 'MEbrown', 'MEgreen', 'MEpink', 'MEred', 'MEturquoise', 'MEyellow']
         if return_type == 'label':

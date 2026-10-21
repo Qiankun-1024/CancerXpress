@@ -1,9 +1,10 @@
 import tensorflow as tf
-import tensorflow.keras.backend as K
+from ._keras import keras
+K = keras.backend
 import numpy as np
 
 
-class accuracy_score(tf.keras.metrics.Metric):
+class accuracy_score(keras.metrics.Metric):
     '''
         ratio of the incorrectly predicted labels over all labels
         '''
@@ -51,7 +52,7 @@ class accuracy_score(tf.keras.metrics.Metric):
         
         
         
-class label_ranking_average_precision(tf.keras.metrics.Metric):
+class label_ranking_average_precision(keras.metrics.Metric):
     '''
     Label ranking average precision (LRAP) is the average over each ground truth label assigned to each sample,
     evaluates the average fraction of labels ranked above ground truth label
@@ -99,7 +100,7 @@ class label_ranking_average_precision(tf.keras.metrics.Metric):
 
 
 
-class micro_average(tf.keras.metrics.Metric):
+class micro_average(keras.metrics.Metric):
 
     def __init__(self, thresholds=0.5, name='micro_average', **kwargs):
         super(micro_average, self).__init__(name=name, **kwargs)

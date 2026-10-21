@@ -52,10 +52,16 @@ resources/
 
 Large checkpoint directories should be downloaded after cloning the repository.
 
-## After Cloning
+## Installed Package
 
-Users should:
+Neither the wheel nor source distribution includes `resources/`. The complete
+versioned resource bundle is published separately; the small source copies
+remain for maintainers, not as an installation-path fallback.
 
-1. install the package environment
-2. download model checkpoints from public links
-3. place them under `resources/models/`
+Users download the resource bundle into `~/.cache/cancerxpress/resources`,
+set `CANCERXPRESS_HOME`, or pass `CancerXpress(resource_dir=...)`. An existing
+checkout can still be used with `resource_dir="resources"`.
+
+The release exporter uses an explicit resource allowlist and the five active
+inference models. It excludes patient expression, clinical records, optimizer
+state, stale checkpoints and analysis outputs.

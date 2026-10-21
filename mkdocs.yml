@@ -1,0 +1,17 @@
+site_name: CancerXpress
+site_description: Functional-axis prediction, attribution, and reference search for RNA-seq data.
+site_url: !ENV [READTHEDOCS_CANONICAL_URL, ""]
+repo_url: https://github.com/Qiankun-1024/CancerXpress
+edit_uri: edit/main/tutorials/
+docs_dir: tutorials
+site_dir: site
+theme:
+  name: readthedocs
+nav:
+  - Home: index.md
+  - Installation and Compatibility: installation.md
+  - Quickstart: 01_quickstart.md
+  - API Guide: api.md
+  - Documentation Deployment: readthedocs.md
+plugins:
+  - search

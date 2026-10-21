@@ -1,2 +1,12 @@
-recursive-include resources *
-include tests/test_risk_attribution.py
+include README.md LICENSE
+include requirements.txt requirements-release-lock.txt
+recursive-include tutorials *.md
+include mkdocs.yml .readthedocs.yaml docs/requirements.txt
+exclude MODEL_DOWNLOADS.md RESOURCES_POLICY.md
+prune scripts
+prune tests
+prune training
+prune examples
+prune resources
+prune output
+prune dataset

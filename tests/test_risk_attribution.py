@@ -23,7 +23,7 @@ class RiskAttributionTests(unittest.TestCase):
             return tf.reduce_sum(f['me'], axis=1)
 
         class ToyPredictor:
-            def __init__(self, expr):
+            def __init__(self, expr, **kwargs):
                 self.data = expr.to_numpy(np.float32)
 
             def _prepare_run1_features(self, frame, clinical, metadata):

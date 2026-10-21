@@ -54,7 +54,7 @@ class GeneIDConverter:
         else:
             raise ValueError(f'Unsupported gene_id_type: {gene_id_type}')
 
-        out = out.groupby(out.columns, axis=1).sum()
+        out = out.T.groupby(level=0).sum().T
         return out
 
 
@@ -68,6 +68,11 @@ class ExpressionPreprocessor:
                 gene_id_map_path=rp.gene_id_map,
             )
         self.assets = assets
+        for path in (assets.pixel_coords_path, assets.max_norm_tpm_path, assets.gene_id_map_path):
+            if not Path(path).is_file():
+                raise FileNotFoundError(
+                    'Missing CancerXpress resource: %s. Install the resource bundle and '
+                    'pass resource_dir or set CANCERXPRESS_HOME.' % path)
         self.pixel_coords = pd.read_csv(assets.pixel_coords_path, index_col=0)
         self.max_matrix = pd.read_csv(assets.max_norm_tpm_path, index_col=0, sep='\t')
         self.max_matrix.columns = ['max_log2tpm']

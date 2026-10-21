@@ -1,52 +1,55 @@
-# Model Downloads
+# Model Resources
 
-This repository does not include large model checkpoints in GitHub.
+Weights and required preprocessing assets are distributed separately from the
+Python wheel and source distribution. The official Zenodo URL/DOI is pending
+publication; no placeholder URL is used for automatic downloads.
 
-The following resources should be hosted externally, for example via:
+## Download and use
 
-- GitHub Releases
-- Hugging Face Hub
-- Zenodo
-- institutional object storage
-
-## Required Checkpoint Groups
-
-- `batch_correction`: batch correction, latent embedding extraction, and corrected expression reconstruction
-- `module_eigenpathway`: Module Eigenpathway prediction
-- `primary_site`: primary site classification
-- `cancer_type`: cancer type classification
-- `survival_risk`: survival risk prediction
-
-## Suggested Layout After Download
-
-Place downloaded files under:
-
-```text
-resources/models/
-  model_manifest.json
-  pretrained/
-    batch_correction/
-  finetuned/
-    me/
-    primary_site/
-    cancer_type/
-    survival_risk/
+```python
+import cancerxpress as cx
+cx.download_models(url=zenodo_file_url, sha256=release_sha256)
+model = cx.CancerXpress()
 ```
 
-The public task name `module_eigenpathway` currently maps to the local checkpoint directory `resources/models/finetuned/me/`.
+The default destination is `~/.cache/cancerxpress/resources`, or
+`CANCERXPRESS_HOME` when set. A custom download destination can be passed as
+`resource_dir`; pass the same directory to `CancerXpress(resource_dir=...)`.
+The archive contains the following paths directly (no extra top-level folder):
 
-## External Links
+```text
+resource_manifest.json
+assets/
+encoders/
+gene_annotation/
+mappings/survival_risk_preprocessing.json
+models/pretrained/batch_correction/
+models/finetuned/me/
+models/finetuned/primary_site/
+models/finetuned/cancer_type/
+models/finetuned/survival_risk/
+```
 
-Replace the placeholders below with your real public download URLs.
+The survival model consumes predicted ME scores and clinical covariates:
+age, sex, race, tumor stage and cancer type. Model order and preprocessing
+parameters are frozen in the bundle.
 
-- `batch_correction`: `TO_BE_FILLED`
-- `module_eigenpathway`: `TO_BE_FILLED`
-- `primary_site`: `TO_BE_FILLED`
-- `cancer_type`: `TO_BE_FILLED`
-- `survival_risk`: packaged run1 dual-input checkpoint for pan-cancer survival risk prediction; requires cancer type input at inference time
+## Maintainer release
 
-## Notes
+Run `scripts/prepare_zenodo_release.py --output /path/to/new-release` in the
+supported TensorFlow environment. It explicitly selects inference resources,
+re-saves the five active checkpoint groups without optimizer state, rewrites
+checkpoint paths to relative paths, computes per-file hashes, and creates:
 
-- Keep `model_manifest.json` in the repository.
-- Do not commit TensorFlow checkpoint shards, optimizer states, or large exported outputs to GitHub.
-- If you later publish to PyPI, large checkpoints should also stay outside the wheel and source distribution.
+- `CancerXpress-models-v1.0.0.tar.gz`
+- `resource_manifest.json`
+- `SHA256SUMS.txt`
+
+Upload these three files to one Zenodo record. Review licensing for both model
+weights and third-party reference assets before publishing. Do not upload
+source training directories, datasets, example patient expression, or logs.
+After publication, add the permanent file URL and SHA-256 to this document.
+Test a real remote download before announcing public availability.
+
+`verify_resources` checks integrity, not biological validity or publisher
+identity. Obtain the archive checksum through the trusted release record.

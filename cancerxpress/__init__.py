@@ -1,4 +1,8 @@
 from .pipeline import CancerXpress, CancerXpressResult
+from .reference import ReferenceAtlas
+from .sample_database import SampleDatabase, RangeNotSupportedError
+from .adaptation import LatentAdapter, AdaptationResult, fit_latent_adapter
+from .downloads import download_models, verify_resources
 from .attribution import AttributionResult, CancerXpressAttributor, IntegratedGradients
 from .preprocess import ExpressionPreprocessor, GeneIDConverter, PreprocessAssets
 from .resources import ModelPaths, ResourcePaths
@@ -11,6 +15,10 @@ from .risk_attribution import (
 )
 
 __all__ = [
+    'SampleDatabase', 'RangeNotSupportedError',
+    'ReferenceAtlas', 'LatentAdapter', 'AdaptationResult', 'fit_latent_adapter',
+    'download_models',
+    'verify_resources',
     'AxisShapleyResult',
     'GeneAxisIGResult',
     'AxisRiskAttributionResult',

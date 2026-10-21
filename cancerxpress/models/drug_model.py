@@ -1,10 +1,11 @@
 import tensorflow as tf
-    
-class GCNConv(tf.keras.layers.Layer):
+from .._keras import keras
+
+class GCNConv(keras.layers.Layer):
     def __init__(self, units, activation='relu', use_bias=True, **kwargs):
         super(GCNConv, self).__init__(**kwargs)
         self.units = units              # 输出特征维度
-        self.activation = tf.keras.activations.get(activation)  # 激活函数
+        self.activation = keras.activations.get(activation)  # 激活函数
         self.use_bias = use_bias        # 是否使用偏置项
 
     def build(self, input_shapes):
@@ -18,7 +19,7 @@ class GCNConv(tf.keras.layers.Layer):
             initializer='glorot_uniform',
             trainable=True
         )
-        
+
         # 添加偏置项
         if self.use_bias:
             self.bias = self.add_weight(
@@ -39,7 +40,7 @@ class GCNConv(tf.keras.layers.Layer):
 
         # 特征线性变换 (XW)
         transformed = tf.matmul(features, self.kernel)
-        
+
         # 邻接矩阵传播 (A·XW)
         if isinstance(adjacency, tf.SparseTensor):
             # 稀疏矩阵乘法
@@ -60,37 +61,37 @@ class GCNConv(tf.keras.layers.Layer):
         config = super().get_config().copy()
         config.update({
             'units': self.units,
-            'activation': tf.keras.activations.serialize(self.activation),
+            'activation': keras.activations.serialize(self.activation),
             'use_bias': self.use_bias
         })
         return config
 
 
 
-class GlobalMaxPooling(tf.keras.layers.Layer):
+class GlobalMaxPooling(keras.layers.Layer):
     def call(self, node_features):
         return tf.squeeze(tf.reduce_max(node_features, axis=1, keepdims=True), axis=1)
 
 
-    
 
-class GCNModel(tf.keras.Model):
+
+class GCNModel(keras.Model):
     def __init__(self):
         super(GCNModel, self).__init__()
-        
+
         self.gcn1 = GCNConv(256, activation='relu')
-        self.dropout1 = tf.keras.layers.Dropout(0.2)
+        self.dropout1 = keras.layers.Dropout(0.2)
         self.gcn2 = GCNConv(256, activation='relu')
-        self.dropout2 = tf.keras.layers.Dropout(0.2)
+        self.dropout2 = keras.layers.Dropout(0.2)
         self.gcn3 = GCNConv(256, activation='relu')
-        self.dropout3 = tf.keras.layers.Dropout(0.2)
+        self.dropout3 = keras.layers.Dropout(0.2)
         self.gcn4 = GCNConv(100, activation='relu')
-        self.dropout4 = tf.keras.layers.Dropout(0.2)
-        self.pool = tf.keras.layers.GlobalMaxPooling1D()
-    
+        self.dropout4 = keras.layers.Dropout(0.2)
+        self.pool = keras.layers.GlobalMaxPooling1D()
+
     def call(self, inputs):
         features, adjacency = inputs
-        
+
         x = self.gcn1([features, adjacency])
         x = self.dropout1(x)
         x = self.gcn2([x, adjacency])
@@ -100,52 +101,52 @@ class GCNModel(tf.keras.Model):
         x = self.gcn4([x, adjacency])
         x = self.dropout4(x)
         output = self.pool(x)
-        
+
         return output
 
 
-class drug_FCN(tf.keras.Model):
-    
+class drug_FCN(keras.Model):
+
     def __init__(self, activation):
         super(drug_FCN, self).__init__()
-        self.fc_layer = tf.keras.Sequential([
-            tf.keras.layers.Dense(512),
-            tf.keras.layers.LeakyReLU(alpha=0.2),
-            tf.keras.layers.BatchNormalization(), 
-            tf.keras.layers.Dense(384),
-            tf.keras.layers.LeakyReLU(alpha=0.2),
-            tf.keras.layers.BatchNormalization(), 
-            tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(256),
-            tf.keras.layers.LeakyReLU(alpha=0.2),
-            tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(128),
-            tf.keras.layers.ELU(),             
-            tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(64),
-            tf.keras.layers.LeakyReLU(alpha=0.1)
+        self.fc_layer = keras.Sequential([
+            keras.layers.Dense(512),
+            keras.layers.LeakyReLU(alpha=0.2),
+            keras.layers.BatchNormalization(),
+            keras.layers.Dense(384),
+            keras.layers.LeakyReLU(alpha=0.2),
+            keras.layers.BatchNormalization(),
+            keras.layers.Dropout(0.2),
+            keras.layers.Dense(256),
+            keras.layers.LeakyReLU(alpha=0.2),
+            keras.layers.BatchNormalization(),
+            keras.layers.Dropout(0.2),
+            keras.layers.Dense(128),
+            keras.layers.ELU(),
+            keras.layers.Dropout(0.2),
+            keras.layers.Dense(64),
+            keras.layers.LeakyReLU(alpha=0.1)
         ])
-        self.concat = tf.keras.layers.Concatenate()
+        self.concat = keras.layers.Concatenate()
         if activation == 'sigmoid':
-            self.out_layer = tf.keras.Sequential(
+            self.out_layer = keras.Sequential(
                 [
-                    tf.keras.layers.Dense(1, activation = 'sigmoid')
+                    keras.layers.Dense(1, activation = 'sigmoid')
                 ]
             )
         elif activation == 'softmax':
-            self.out_layer = tf.keras.Sequential(
+            self.out_layer = keras.Sequential(
                 [
-                    tf.keras.layers.Dense(1, activation = 'softmax')
+                    keras.layers.Dense(1, activation = 'softmax')
                 ]
             )
         elif activation == None:
-            self.out_layer = tf.keras.Sequential(
+            self.out_layer = keras.Sequential(
                 [
-                    tf.keras.layers.Dense(1, activation = None)
+                    keras.layers.Dense(1, activation = None)
                 ]
             )
-            
+
 
     @tf.function
     def reparameterize(self, mean, logvar):

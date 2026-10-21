@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Optional
 
-import joblib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
 from .predictor import Predictor
+from .preprocess import ExpressionPreprocessor, PreprocessAssets
 from .resources import ModelPaths, ResourcePaths, load_risk_preprocessing
 from .utils import model_loader
 from .risk_attribution import (
@@ -76,12 +76,12 @@ class CancerXpressAttributor:
         # Preprocess each sample before averaging; TPM normalization is nonlinear.
         image_sum = None
         for start in range(0, len(reference_tpm), 32):
-            images = Predictor(reference_tpm.iloc[start:start + 32]).data
+            images = Predictor(reference_tpm.iloc[start:start + 32], model_paths=self.model_paths, resource_paths=self.resource_paths).data
             batch_sum = np.asarray(images, dtype=np.float64).sum(axis=0, keepdims=True)
             image_sum = batch_sum if image_sum is None else image_sum + batch_sum
         baseline_image = (image_sum / len(reference_tpm)).astype(np.float32)
         metadata = load_risk_preprocessing(self.resource_paths.risk_preprocessing)
-        me_model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None)
+        me_model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None, encoder_ckpt_path=str(self.model_paths.batch_correction))
         reference = pd.Series(np.asarray(me_model(baseline_image, training=False))[0],
                               index=metadata['me_columns'])
         result = self.attribute_axis_risk_from_baseline(
@@ -114,9 +114,9 @@ class CancerXpressAttributor:
             raise ValueError('baseline_me must contain all finite model ME columns')
         if not np.isfinite(baseline_tolerance) or baseline_tolerance < 0:
             raise ValueError('baseline_tolerance must be finite and nonnegative')
-        predictor = Predictor(expr)
+        predictor = Predictor(expr, model_paths=self.model_paths, resource_paths=self.resource_paths)
         me_model = _me_model if _me_model is not None else model_loader.load_predict_model(
-            'latest', str(self.model_paths.me), 8, None)
+            'latest', str(self.model_paths.me), 8, None, encoder_ckpt_path=str(self.model_paths.batch_correction))
         values = me_model(predictor.data, training=False).numpy()
         frame = pd.DataFrame(values, index=expr.index, columns=names)
         features = predictor._prepare_run1_features(frame, clinical, metadata)
@@ -150,10 +150,11 @@ class CancerXpressAttributor:
             raise ValueError("Attribution currently expects exactly one sample.")
         return expr
 
-    @staticmethod
-    def _to_gene_level(expr: pd.DataFrame, attrs_4d: np.ndarray) -> pd.DataFrame:
+    def _to_gene_level(self, expr: pd.DataFrame, attrs_4d: np.ndarray) -> pd.DataFrame:
         from .utils import data_normalizer
-        gene_level = data_normalizer.trans_2d_to_1d(attrs_4d)
+        rp = self.resource_paths
+        processor = ExpressionPreprocessor(PreprocessAssets(rp.pixel_coords, rp.max_norm_tpm, rp.gene_id_map))
+        gene_level = processor.trans_2d_to_1d(attrs_4d)
         gene_level.index = expr.index
         return gene_level
 
@@ -177,8 +178,8 @@ class CancerXpressAttributor:
 
     def attribute_me(self, expr: pd.DataFrame, me_name: str, steps: int = 50) -> AttributionResult:
         expr = self._ensure_single_sample(expr)
-        predictor = Predictor(expr)
-        model = model_loader.load_predict_model("latest", str(self.model_paths.me), 8, None)
+        predictor = Predictor(expr, model_paths=self.model_paths, resource_paths=self.resource_paths)
+        model = model_loader.load_predict_model("latest", str(self.model_paths.me), 8, None, encoder_ckpt_path=str(self.model_paths.batch_correction))
         preds = model(predictor.data, training=False).numpy()
         me_names = ['MEblack', 'MEblue', 'MEbrown', 'MEgreen', 'MEpink', 'MEred', 'MEturquoise', 'MEyellow']
         if me_name not in me_names:
@@ -193,48 +194,6 @@ class CancerXpressAttributor:
             target_name=me_name,
         )
 
-    def attribute_primary_site(self, expr: pd.DataFrame, target_name: Optional[str] = None, steps: int = 50) -> AttributionResult:
-        expr = self._ensure_single_sample(expr)
-        predictor = Predictor(expr)
-        model = model_loader.load_predict_model("latest", str(self.model_paths.primary_site), 35, "softmax")
-        preds = model(predictor.data, training=False).numpy()
-        encoder = joblib.load(self.resource_paths.primary_site_encoder)
-        class_names = list(encoder.categories_[0])
-        if target_name is None:
-            target_idx = int(np.argmax(preds[0]))
-            target_name = class_names[target_idx]
-        else:
-            target_idx = class_names.index(target_name)
-        ig = IntegratedGradients(model, steps=steps)
-        attrs = ig.compute_attributions(tf.convert_to_tensor(predictor.data), self._classifier_target_fn(model, target_idx))
-        gene_level = self._to_gene_level(expr, attrs)
-        return AttributionResult(
-            attributions=gene_level,
-            predicted_output=pd.DataFrame(preds, index=expr.index, columns=class_names),
-            target_name=target_name,
-        )
-
-    def attribute_cancer_type(self, expr: pd.DataFrame, target_name: Optional[str] = None, steps: int = 50) -> AttributionResult:
-        expr = self._ensure_single_sample(expr)
-        predictor = Predictor(expr)
-        model = model_loader.load_predict_model("latest", str(self.model_paths.cancer_type), 41, "softmax")
-        preds = model(predictor.data, training=False).numpy()
-        encoder = joblib.load(self.resource_paths.cancer_type_encoder)
-        class_names = list(encoder.categories_[0])
-        if target_name is None:
-            target_idx = int(np.argmax(preds[0]))
-            target_name = class_names[target_idx]
-        else:
-            target_idx = class_names.index(target_name)
-        ig = IntegratedGradients(model, steps=steps)
-        attrs = ig.compute_attributions(tf.convert_to_tensor(predictor.data), self._classifier_target_fn(model, target_idx))
-        gene_level = self._to_gene_level(expr, attrs)
-        return AttributionResult(
-            attributions=gene_level,
-            predicted_output=pd.DataFrame(preds, index=expr.index, columns=class_names),
-            target_name=target_name,
-        )
-
     def attribute_survival_risk(
         self,
         expr: pd.DataFrame,
@@ -242,9 +201,9 @@ class CancerXpressAttributor:
         steps: int = 50,
     ) -> AttributionResult:
         expr = self._ensure_single_sample(expr)
-        predictor = Predictor(expr)
+        predictor = Predictor(expr, model_paths=self.model_paths, resource_paths=self.resource_paths)
         metadata = load_risk_preprocessing(self.resource_paths.risk_preprocessing)
-        me_model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None)
+        me_model = model_loader.load_predict_model('latest', str(self.model_paths.me), 8, None, encoder_ckpt_path=str(self.model_paths.batch_correction))
         me_values = me_model(predictor.data, training=False).numpy()
         me_frame = pd.DataFrame(me_values, index=expr.index, columns=metadata['me_columns'])
         base_features = predictor._prepare_run1_features(me_frame, clinical, metadata)

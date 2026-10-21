@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-import tensorflow_addons as tfa
+from ._keras import keras
 
 
 '''cross entropy loss
@@ -230,7 +230,7 @@ def unsupervised_generator_loss_with_balance(biology, pred, class_num=None, alph
             target_dist = tf.ones_like(avg_pred) / tf.cast(tf.shape(avg_pred)[0], tf.float32)
             
             # 使用KL散度或MSE鼓励预测分布接近均匀分布
-            balance_loss = tf.keras.losses.kld(target_dist, avg_pred)
+            balance_loss = keras.losses.kld(target_dist, avg_pred)
             # 或者使用MSE: balance_loss = tf.reduce_mean(tf.square(avg_pred - target_dist))
         
         return min_entropy_loss + alpha * balance_loss
@@ -262,7 +262,7 @@ def unsupervised_generator_loss_with_balance(biology, pred, class_num=None, alph
                 task_avg_pred = tf.reduce_mean(task_unlabeled_pred, axis=0)
                 task_target_dist = tf.ones_like(task_avg_pred) / tf.cast(n_classes, tf.float32)
                 
-                task_balance_loss = tf.keras.losses.kld(task_target_dist, task_avg_pred)
+                task_balance_loss = keras.losses.kld(task_target_dist, task_avg_pred)
             
             total_loss += task_entropy_loss + alpha * task_balance_loss
             start_idx = end_idx

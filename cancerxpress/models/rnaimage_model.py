@@ -1,47 +1,48 @@
 import tensorflow as tf
-import tensorflow_addons as tfa
+from .._keras import keras
+from .normalization import GroupNormalization as CheckpointGroupNormalization
 
 
-class Bio_Generator(tf.keras.Model):
+class Bio_Generator(keras.Model):
 
     def __init__(self, input_shape, z_dim):
         super(Bio_Generator, self).__init__()
         self.z_dim = z_dim
-        self.encoder = tf.keras.Sequential(
+        self.encoder = keras.Sequential(
             [
-                tf.keras.layers.InputLayer(input_shape=(input_shape[1], input_shape[2], 1)),
-                tf.keras.layers.Conv2D(filters=64, kernel_size=5, strides=2, padding='same'),
-                tf.keras.layers.LeakyReLU(),
-                tf.keras.layers.Conv2D(filters=64, kernel_size=5, strides=2, padding='same'),
-                tfa.layers.GroupNormalization(),
-                tf.keras.layers.LeakyReLU(),
-                tf.keras.layers.Conv2D(filters=128, kernel_size=3, strides=2, padding='same'),
-                tfa.layers.GroupNormalization(),
-                tf.keras.layers.LeakyReLU(),
-                tf.keras.layers.Flatten(),
-                tf.keras.layers.Dense(1000),
-                tf.keras.layers.LeakyReLU(),
+                keras.layers.InputLayer(input_shape=(input_shape[1], input_shape[2], 1)),
+                keras.layers.Conv2D(filters=64, kernel_size=5, strides=2, padding='same'),
+                keras.layers.LeakyReLU(),
+                keras.layers.Conv2D(filters=64, kernel_size=5, strides=2, padding='same'),
+                CheckpointGroupNormalization(),
+                keras.layers.LeakyReLU(),
+                keras.layers.Conv2D(filters=128, kernel_size=3, strides=2, padding='same'),
+                CheckpointGroupNormalization(),
+                keras.layers.LeakyReLU(),
+                keras.layers.Flatten(),
+                keras.layers.Dense(1000),
+                keras.layers.LeakyReLU(),
                 # No activation
-                tf.keras.layers.Dense((self.z_dim + self.z_dim)),
+                keras.layers.Dense((self.z_dim + self.z_dim)),
             ]
         )
 
-        self.decoder = tf.keras.Sequential(
+        self.decoder = keras.Sequential(
             [
-            tf.keras.layers.InputLayer(input_shape=(self.z_dim,)),
-            tf.keras.layers.Dense(units=16*32*64),
-            tf.keras.layers.LeakyReLU(),
-            tf.keras.layers.Reshape(target_shape=(16, 32, 64)),
-            tf.keras.layers.Conv2DTranspose(filters=128, kernel_size=5, strides=2, padding='same'),
-            tfa.layers.GroupNormalization(),
-            tf.keras.layers.LeakyReLU(),
-            tf.keras.layers.Conv2DTranspose(filters=64, kernel_size=5, strides=2, padding='same'),
-            tfa.layers.GroupNormalization(),
-            tf.keras.layers.LeakyReLU(),
-            tf.keras.layers.Conv2DTranspose(filters=64, kernel_size=5, strides=2, padding='same'),
-            tfa.layers.GroupNormalization(),
-            tf.keras.layers.LeakyReLU(),
-            tf.keras.layers.Conv2DTranspose(filters=1, kernel_size=5, strides=1, padding='same'),
+            keras.layers.InputLayer(input_shape=(self.z_dim,)),
+            keras.layers.Dense(units=16*32*64),
+            keras.layers.LeakyReLU(),
+            keras.layers.Reshape(target_shape=(16, 32, 64)),
+            keras.layers.Conv2DTranspose(filters=128, kernel_size=5, strides=2, padding='same'),
+            CheckpointGroupNormalization(),
+            keras.layers.LeakyReLU(),
+            keras.layers.Conv2DTranspose(filters=64, kernel_size=5, strides=2, padding='same'),
+            CheckpointGroupNormalization(),
+            keras.layers.LeakyReLU(),
+            keras.layers.Conv2DTranspose(filters=64, kernel_size=5, strides=2, padding='same'),
+            CheckpointGroupNormalization(),
+            keras.layers.LeakyReLU(),
+            keras.layers.Conv2DTranspose(filters=1, kernel_size=5, strides=1, padding='same'),
             ]
         )
 
@@ -81,27 +82,27 @@ class Bio_Generator(tf.keras.Model):
         return logits
 
 
-class Noise_Encoder(tf.keras.Model):
+class Noise_Encoder(keras.Model):
     
     def __init__(self, input_shape, z_dim):
         super(Noise_Encoder, self).__init__()
         self.z_dim = z_dim
-        self.encoder = tf.keras.Sequential(
+        self.encoder = keras.Sequential(
             [
-                tf.keras.layers.InputLayer(input_shape=(input_shape[1], input_shape[2], 1)),
-                tf.keras.layers.Conv2D(filters=64, kernel_size=5, strides=2),
-                tf.keras.layers.LeakyReLU(),
-                tf.keras.layers.Conv2D(filters=64, kernel_size=5, strides=2),
-                tfa.layers.GroupNormalization(),
-                tf.keras.layers.LeakyReLU(),
-                tf.keras.layers.Conv2D(filters=128, kernel_size=5, strides=2),
-                tfa.layers.GroupNormalization(),
-                tf.keras.layers.LeakyReLU(),
-                tf.keras.layers.Flatten(),
-                tf.keras.layers.Dense(1000),
-                tf.keras.layers.LeakyReLU(),
+                keras.layers.InputLayer(input_shape=(input_shape[1], input_shape[2], 1)),
+                keras.layers.Conv2D(filters=64, kernel_size=5, strides=2),
+                keras.layers.LeakyReLU(),
+                keras.layers.Conv2D(filters=64, kernel_size=5, strides=2),
+                CheckpointGroupNormalization(),
+                keras.layers.LeakyReLU(),
+                keras.layers.Conv2D(filters=128, kernel_size=5, strides=2),
+                CheckpointGroupNormalization(),
+                keras.layers.LeakyReLU(),
+                keras.layers.Flatten(),
+                keras.layers.Dense(1000),
+                keras.layers.LeakyReLU(),
                 # No activation
-                tf.keras.layers.Dense(z_dim + z_dim)
+                keras.layers.Dense(z_dim + z_dim)
             ]
         )
     
@@ -120,7 +121,7 @@ class Noise_Encoder(tf.keras.Model):
         return z
 
 
-class GroupNormalization(tf.keras.layers.Layer):
+class GroupNormalization(keras.layers.Layer):
 
     def __init__(self, N=16, group=2, epsilon=1e-5):
         super(GroupNormalization, self).__init__()
@@ -150,48 +151,48 @@ class GroupNormalization(tf.keras.layers.Layer):
         return self.gamma * x + self.beta
 
 
-class Reconstructor(tf.keras.Model):
+class Reconstructor(keras.Model):
 
     def __init__(self, input_shape, z_dim):
         super(Reconstructor, self).__init__()
         self.z_dim = z_dim
-        self.encoder = tf.keras.Sequential(
+        self.encoder = keras.Sequential(
             [
-                tf.keras.layers.InputLayer(input_shape=(input_shape[1], input_shape[2], 1)),
-                tf.keras.layers.Conv2D(filters=64, kernel_size=5, strides=2, padding='same'),
-                tf.keras.layers.LeakyReLU(),
-                tf.keras.layers.Conv2D(filters=64, kernel_size=5, strides=2, padding='same'),
-                tfa.layers.GroupNormalization(),
-                tf.keras.layers.LeakyReLU(),
-                tf.keras.layers.Conv2D(filters=128, kernel_size=3, strides=2, padding='same'),
-                tfa.layers.GroupNormalization(),
-                tf.keras.layers.LeakyReLU(),
-                tf.keras.layers.Flatten(),
-                tf.keras.layers.Dense(1000),
-                tf.keras.layers.LeakyReLU(),
-                tf.keras.layers.Dense(self.z_dim),
+                keras.layers.InputLayer(input_shape=(input_shape[1], input_shape[2], 1)),
+                keras.layers.Conv2D(filters=64, kernel_size=5, strides=2, padding='same'),
+                keras.layers.LeakyReLU(),
+                keras.layers.Conv2D(filters=64, kernel_size=5, strides=2, padding='same'),
+                CheckpointGroupNormalization(),
+                keras.layers.LeakyReLU(),
+                keras.layers.Conv2D(filters=128, kernel_size=3, strides=2, padding='same'),
+                CheckpointGroupNormalization(),
+                keras.layers.LeakyReLU(),
+                keras.layers.Flatten(),
+                keras.layers.Dense(1000),
+                keras.layers.LeakyReLU(),
+                keras.layers.Dense(self.z_dim),
             ]
         )
 
-        self.decoder = tf.keras.Sequential(
+        self.decoder = keras.Sequential(
             [
-            tf.keras.layers.InputLayer(input_shape=(self.z_dim * 2,)),
-            tf.keras.layers.Dense(units=16*32*64),
-            tf.keras.layers.LeakyReLU(),
-            tf.keras.layers.Reshape(target_shape=(16, 32, 64)),
-            tf.keras.layers.Conv2DTranspose(filters=128, kernel_size=5, strides=2, padding='same'),
-            tfa.layers.GroupNormalization(),
-            tf.keras.layers.LeakyReLU(),
-            tf.keras.layers.Conv2DTranspose(filters=64, kernel_size=5, strides=2, padding='same'),
-            tfa.layers.GroupNormalization(),
-            tf.keras.layers.LeakyReLU(),
-            tf.keras.layers.Conv2DTranspose(filters=64, kernel_size=5, strides=2, padding='same'),
-            tfa.layers.GroupNormalization(),
-            tf.keras.layers.LeakyReLU(),
-            tf.keras.layers.Conv2DTranspose(filters=1, kernel_size=5, strides=1, padding='same'),
+            keras.layers.InputLayer(input_shape=(self.z_dim * 2,)),
+            keras.layers.Dense(units=16*32*64),
+            keras.layers.LeakyReLU(),
+            keras.layers.Reshape(target_shape=(16, 32, 64)),
+            keras.layers.Conv2DTranspose(filters=128, kernel_size=5, strides=2, padding='same'),
+            CheckpointGroupNormalization(),
+            keras.layers.LeakyReLU(),
+            keras.layers.Conv2DTranspose(filters=64, kernel_size=5, strides=2, padding='same'),
+            CheckpointGroupNormalization(),
+            keras.layers.LeakyReLU(),
+            keras.layers.Conv2DTranspose(filters=64, kernel_size=5, strides=2, padding='same'),
+            CheckpointGroupNormalization(),
+            keras.layers.LeakyReLU(),
+            keras.layers.Conv2DTranspose(filters=1, kernel_size=5, strides=1, padding='same'),
             ]
         )
-        self.concat = tf.keras.layers.Concatenate()
+        self.concat = keras.layers.Concatenate()
 
     @tf.function
     def call(self, x, z, apply_sigmoid=False):
@@ -205,92 +206,92 @@ class Reconstructor(tf.keras.Model):
 
 
 # def latent_batch_Discriminator(output_dim, activation='softmax'):
-#     model = tf.keras.Sequential()
-#     model.add(tf.keras.layers.LeakyReLU())
-#     model.add(tf.keras.layers.Dropout(0.3))
-#     model.add(tf.keras.layers.Dense(output_dim, activation=activation))
+#     model = keras.Sequential()
+#     model.add(keras.layers.LeakyReLU())
+#     model.add(keras.layers.Dropout(0.3))
+#     model.add(keras.layers.Dense(output_dim, activation=activation))
 #     return model
 
 
 def latent_batch_Discriminator(output_dim, activation='softmax'):
-    model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Dense(384))
-    model.add(tf.keras.layers.BatchNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.3))
-    model.add(tf.keras.layers.Dense(256))
-    model.add(tf.keras.layers.BatchNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.3))
-    model.add(tf.keras.layers.Dense(128))
-    model.add(tf.keras.layers.BatchNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.3))
-    model.add(tf.keras.layers.Dense(64))
-    model.add(tf.keras.layers.BatchNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.3))
-    model.add(tf.keras.layers.Dense(output_dim, activation=activation))
+    model = keras.Sequential()
+    model.add(keras.layers.Dense(384))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.3))
+    model.add(keras.layers.Dense(256))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.3))
+    model.add(keras.layers.Dense(128))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.3))
+    model.add(keras.layers.Dense(64))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.3))
+    model.add(keras.layers.Dense(output_dim, activation=activation))
     return model
 
 
 
 def latent_bio_Discriminator(output_dim, activation='sigmoid'):
-    model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Dense(512))
-    model.add(tf.keras.layers.BatchNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.3))
-    model.add(tf.keras.layers.Dense(384))
-    model.add(tf.keras.layers.BatchNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.3))
-    model.add(tf.keras.layers.Dense(256))
-    model.add(tf.keras.layers.BatchNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.3))
-    model.add(tf.keras.layers.Dense(128))
-    model.add(tf.keras.layers.BatchNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.3))
-    model.add(tf.keras.layers.Dense(64))
-    model.add(tf.keras.layers.BatchNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.3))
-    model.add(tf.keras.layers.Dense(output_dim, activation=activation))
+    model = keras.Sequential()
+    model.add(keras.layers.Dense(512))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.3))
+    model.add(keras.layers.Dense(384))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.3))
+    model.add(keras.layers.Dense(256))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.3))
+    model.add(keras.layers.Dense(128))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.3))
+    model.add(keras.layers.Dense(64))
+    model.add(keras.layers.BatchNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.3))
+    model.add(keras.layers.Dense(output_dim, activation=activation))
     return model
 
 
 def recon_Discriminator(input_shape, output_dim, activation='sigmoid'):
-    model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Conv2D(32, 5, strides=2, padding='same', input_shape=[input_shape[1], input_shape[2], 1]))
-    model.add(tfa.layers.GroupNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.5))
+    model = keras.Sequential()
+    model.add(keras.layers.Conv2D(32, 5, strides=2, padding='same', input_shape=[input_shape[1], input_shape[2], 1]))
+    model.add(CheckpointGroupNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.5))
 
-    model.add(tf.keras.layers.Conv2D(64, 5, strides=2, padding='same'))
-    model.add(tfa.layers.GroupNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.5))
+    model.add(keras.layers.Conv2D(64, 5, strides=2, padding='same'))
+    model.add(CheckpointGroupNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.5))
 
-    model.add(tf.keras.layers.Conv2D(128, 5, strides=2, padding='same'))
-    model.add(tfa.layers.GroupNormalization())
-    model.add(tf.keras.layers.LeakyReLU())
-    model.add(tf.keras.layers.Dropout(0.5))
+    model.add(keras.layers.Conv2D(128, 5, strides=2, padding='same'))
+    model.add(CheckpointGroupNormalization())
+    model.add(keras.layers.LeakyReLU())
+    model.add(keras.layers.Dropout(0.5))
 
-    model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dense(1000))
-    model.add(tf.keras.layers.LeakyReLU(name='feature_matching_layer'))
+    model.add(keras.layers.Flatten())
+    model.add(keras.layers.Dense(1000))
+    model.add(keras.layers.LeakyReLU(name='feature_matching_layer'))
 
     if activation=='sigmoid':
-        model.add(tf.keras.layers.Dense(output_dim, activation='sigmoid'))
+        model.add(keras.layers.Dense(output_dim, activation='sigmoid'))
     elif activation=='softmax':
-        model.add(tf.keras.layers.Dense(output_dim, activation='softmax'))
+        model.add(keras.layers.Dense(output_dim, activation='softmax'))
     return model
 
 
 def unsupervised_Discriminator(Discriminator, label_type='multiclass', class_num=None):
-    model = tf.keras.models.Sequential(Discriminator.layers[:-1])
+    model = keras.models.Sequential(Discriminator.layers[:-1])
     
     def predict(x):
         prediction = 1.0 - (1.0 / (tf.reduce_sum(tf.exp(x), axis=-1, keepdims=True) + 1.0))
@@ -300,7 +301,7 @@ def unsupervised_Discriminator(Discriminator, label_type='multiclass', class_num
         if class_num is not None:
             raise ValueError('class_num only supports for multilabel classification')
 
-        model.add(tf.keras.layers.Lambda(predict))
+        model.add(keras.layers.Lambda(predict))
     
     elif label_type == 'multilabel':
         
@@ -313,7 +314,7 @@ def unsupervised_Discriminator(Discriminator, label_type='multiclass', class_num
                 start = end
             return tf.concat(multilabel_pred, axis=1)
 
-        model.add(tf.keras.layers.Lambda(multilabel_predict))
+        model.add(keras.layers.Lambda(multilabel_predict))
 
     return model
 
