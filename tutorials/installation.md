@@ -1,8 +1,8 @@
 # Installation and Compatibility
 
-## Development Version
+## Version 1.1.0
 
-The 1.1 development series targets **Python 3.8 through 3.13**. Python 3.11 or
+CancerXpress 1.1.0 supports **Python 3.8 through 3.13**. Python 3.11 or
 3.12 is recommended for new environments. The package selects runtime
 dependencies using Python-version markers:
 
@@ -18,15 +18,14 @@ alone is not a model-compatibility test.
 ```bash
 conda create -n cancerxpress python=3.11 -y
 conda activate cancerxpress
-cd /path/to/CancerXpress
 python -m pip install --upgrade pip
-python -m pip install --only-binary=:all: .
+python -m pip install --only-binary=:all: "cancerxpress==1.1.0"
 python -m pip check
 ```
 
-Use a checkout containing the 1.1 changes. Once those changes are pushed to the
-repository, installation from the corresponding Git commit is also possible.
-Do not install `1.0.0` and expect it to include these changes.
+Alternatively, download or clone the GitHub project, enter its root directory,
+and run `python -m pip install --only-binary=:all: .`. Use a specific commit
+for reproducibility. Do not install `1.0.0` and expect the newer runtime.
 
 The `environment.yml` file provides an alternative conda setup. GPU libraries
 are not pinned to the old CUDA 11.0 stack. CPU is sufficient for the walkthrough;

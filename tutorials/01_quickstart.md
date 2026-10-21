@@ -6,14 +6,13 @@ The core walkthrough runs on synthetic inputs so you can check the software with
 
 ## 1. Install the Package and Prepare Model Resources
 
-This tutorial now targets the **1.1 development series**, with a dependency matrix for Python 3.8-3.13. Use Python 3.11 or 3.12 for a new environment. The published PyPI `1.0.0` wheel remains Python-3.8-only; install the development checkout for the new runtime. See [Installation and Compatibility](installation.md).
+This tutorial targets **CancerXpress 1.1.0**, supporting Python 3.8-3.13. Use Python 3.11 or 3.12 for a new environment. The older PyPI `1.0.0` wheel supports Python 3.8 only. See [Installation and Compatibility](installation.md).
 
 ```bash
 conda create -n cancerxpress python=3.11 -y
 conda activate cancerxpress
 python -m pip install --upgrade pip
-cd /path/to/CancerXpress
-python -m pip install --only-binary=:all: .
+python -m pip install --only-binary=:all: "cancerxpress==1.1.0"
 python -m pip check
 ```
 

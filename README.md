@@ -30,8 +30,8 @@ Choose one of the two [installation methods](#installation):
 
 | Method | Current version | Python |
 | --- | --- | --- |
-| Download the GitHub project and install locally | 1.1 development series | 3.8-3.13; 3.11 or 3.12 recommended |
-| Install from PyPI | 1.0.0 released version | 3.8 only |
+| Download the GitHub project and install locally | Current source | 3.8-3.13; 3.11 or 3.12 recommended |
+| Install from PyPI | 1.1.0 | 3.8-3.13; 3.11 or 3.12 recommended |
 
 Prepare the separate model bundle before inference. Follow the
 [step-by-step tutorial](tutorials/01_quickstart.md) for TPM inputs,
@@ -39,9 +39,8 @@ prediction, attribution, local reference queries and optional cohort adaptation.
 The tutorial includes a reproducible synthetic-data walkthrough and explains
 how to substitute real data; synthetic results are not biological validation.
 
-The published PyPI `1.0.0` release remains Python-3.8-only until a new release
-is published. Do not apply its historical `requirements-release-lock.txt`
-constraints to this development version.
+The older PyPI `1.0.0` release supports Python 3.8 only. Do not apply its
+historical `requirements-release-lock.txt` constraints to version 1.1.0.
 
 The examples below use files from the GitHub project. A PyPI installation does
 not include those example files; download the project or use your own TPM and
@@ -119,7 +118,7 @@ contain unused classification checkpoints, which this API does not load.
 
 ## Installation
 
-The 1.1 development series targets **Python 3.8-3.13**, with TensorFlow 2.13.x
+Version 1.1.0 supports **Python 3.8-3.13**, with TensorFlow 2.13.x
 on Python 3.8 and TensorFlow / tf-keras 2.20.x on Python 3.9-3.13.
 TensorFlow Addons is no longer required. Keras 2 checkpoint compatibility is
 handled internally without changing the process-wide Keras selection.
@@ -151,20 +150,20 @@ moving branch.
 
 ### Option 2: Install from PyPI
 
-The currently published [PyPI release](https://pypi.org/project/cancerxpress/)
-is **1.0.0 and requires Python 3.8**. It does not yet include the multi-Python
-runtime changes on GitHub. In a dedicated Python 3.8 environment, run:
+Install [CancerXpress 1.1.0 from PyPI](https://pypi.org/project/cancerxpress/1.1.0/)
+in a dedicated Python 3.8-3.13 environment:
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install "cancerxpress==1.0.0"
+python -m pip install "cancerxpress==1.1.0"
 python -m pip check
 ```
 
-For Python 3.9-3.13, use Option 1 until a compatible release is published on
-PyPI. The historical `requirements-release-lock.txt` can be used as pip
+To upgrade an existing installation, use `python -m pip install --upgrade cancerxpress`.
+Use a fresh environment when migrating from 1.0.0 to avoid retaining obsolete
+TensorFlow GPU / Addons dependencies. The historical `requirements-release-lock.txt` can be used as pip
 constraints to reproduce the tested 1.0.0 dependency versions; do not apply
-that file to the GitHub development version.
+that file to version 1.1.0.
 
 **Both methods install code and dependencies only.** Model parameters and
 reference data remain separate and must be installed manually. Prepare the

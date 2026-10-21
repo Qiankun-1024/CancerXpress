@@ -24,9 +24,9 @@ plotting functions. Results are intended for research, not clinical diagnosis.
 
 ## Version Notice
 
-These pages describe the **1.1 development series**. The published PyPI release
-`1.0.0` remains Python-3.8-only; editing this repository does not change that
-published wheel. See the installation page for the source-install workflow.
+These pages describe **CancerXpress 1.1.0**, supporting Python 3.8-3.13.
+The older `1.0.0` release supports Python 3.8 only. See the installation page
+for PyPI and source-install workflows.
 
 The website displays documentation and examples. It does not run models on
 uploaded patient data or provide an online prediction service.
